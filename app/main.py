@@ -6,6 +6,8 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers.pms_read_v1 import router as pms_read_v1_router
+
 PMS_API_VERSION = "0.1.0"
 
 app = FastAPI(
@@ -29,6 +31,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(pms_read_v1_router)
+
 
 @app.get("/")
 async def root() -> dict[str, Any]:
@@ -50,11 +54,3 @@ async def health() -> dict[str, str]:
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
-
-
-@app.get("/pms/read/v1/health")
-async def read_v1_health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "surface": "pms-read-v1",
-    }
