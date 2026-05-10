@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-app/__init__.py
-app/main.py
-pms_api.egg-info/PKG-INFO
-pms_api.egg-info/SOURCES.txt
-pms_api.egg-info/dependency_links.txt
-pms_api.egg-info/requires.txt
-pms_api.egg-info/top_level.txt
