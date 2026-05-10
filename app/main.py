@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.health import router as health_router
 from app.routers.pms_read_v1 import router as pms_read_v1_router
+from app.routers.pms_owner import router as pms_owner_router
 
 PMS_API_VERSION = "0.1.0"
 
@@ -34,6 +35,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(pms_read_v1_router)
+app.include_router(pms_owner_router)
 
 
 @app.get("/")
