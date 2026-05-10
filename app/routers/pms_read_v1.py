@@ -11,11 +11,16 @@ from app.contracts.pms_read import (
     BarcodeProbeOut,
     BarcodeQueryIn,
     BarcodeQueryOut,
+    ItemBasic,
     ItemBasicBatchOut,
     ItemIdsBatchIn,
+    ItemPolicy,
     ItemPolicyBatchOut,
     ItemReportMetaBatchOut,
+    PmsExportBarcode,
+    PmsExportSkuCode,
     PmsExportSkuCodeResolution,
+    PmsExportUom,
     PmsReadHealthOut,
     ReportSearchOut,
     SkuCodeQueryIn,
@@ -26,20 +31,32 @@ from app.contracts.pms_read import (
     UomQueryOut,
 )
 from app.db.session import get_db
+from app.repositories.barcode_read_repo import BarcodeReadRepository
 from app.repositories.item_basic_read_repo import ItemBasicReadRepository
 from app.repositories.item_policy_read_repo import ItemPolicyReadRepository
 from app.repositories.item_report_meta_read_repo import ItemReportMetaReadRepository
-from app.repositories.uom_read_repo import UomReadRepository
-from app.repositories.barcode_read_repo import BarcodeReadRepository
 from app.repositories.sku_code_read_repo import (
     SkuCodeReadRepository,
     SkuCodeResolveError,
 )
+from app.repositories.uom_read_repo import UomReadRepository
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
 
 class ItemBasicReader(Protocol):
+    def list_item_basics(
+        self,
+        *,
+        keyword: str | None = None,
+        enabled: bool | None = None,
+        limit: int = 50,
+    ) -> list[ItemBasic]:
+        ...
+
+    def get_item_basic(self, *, item_id: int) -> ItemBasic | None:
+        ...
+
     def get_item_basic_batch(
         self,
         *,
@@ -50,6 +67,12 @@ class ItemBasicReader(Protocol):
 
 
 class ItemPolicyReader(Protocol):
+    def get_item_policy(self, *, item_id: int) -> ItemPolicy | None:
+        ...
+
+    def get_item_policy_by_sku(self, *, sku: str) -> ItemPolicy | None:
+        ...
+
     def get_item_policy_batch(
         self,
         *,
@@ -60,6 +83,14 @@ class ItemPolicyReader(Protocol):
 
 
 class ItemReportMetaReader(Protocol):
+    def search_report_item_ids_by_keyword(
+        self,
+        *,
+        keyword: str,
+        limit: int,
+    ) -> list[int]:
+        ...
+
     def get_item_report_meta_batch(
         self,
         *,
@@ -69,6 +100,9 @@ class ItemReportMetaReader(Protocol):
 
 
 class UomReader(Protocol):
+    def get_uom(self, *, item_uom_id: int) -> PmsExportUom | None:
+        ...
+
     def query_uoms(
         self,
         *,
@@ -77,8 +111,19 @@ class UomReader(Protocol):
     ) -> UomQueryOut:
         ...
 
+    def get_default_or_base_batch(
+        self,
+        *,
+        item_ids: list[int],
+        usage: str,
+    ) -> UomDefaultsBatchOut:
+        ...
+
 
 class BarcodeReader(Protocol):
+    def get_barcode(self, *, barcode_id: int) -> PmsExportBarcode | None:
+        ...
+
     def query_barcodes(
         self,
         *,
@@ -95,6 +140,9 @@ class BarcodeReader(Protocol):
 
 
 class SkuCodeReader(Protocol):
+    def get_sku_code(self, *, sku_code_id: int) -> PmsExportSkuCode | None:
+        ...
+
     def query_sku_codes(
         self,
         *,
@@ -113,7 +161,6 @@ class SkuCodeReader(Protocol):
         enabled_only: bool,
     ) -> PmsExportSkuCodeResolution:
         ...
-
 
 
 def _sku_code_error_status(code: str) -> int:
@@ -163,6 +210,27 @@ async def read_v1_health() -> PmsReadHealthOut:
     return PmsReadHealthOut(status="ok", surface="pms-read-v1")
 
 
+@router.get("/items/basic", response_model=list[ItemBasic])
+async def list_item_basics(
+    keyword: str | None = Query(default=None, max_length=128),
+    enabled: bool | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=500),
+    reader: ItemBasicReader = Depends(get_item_basic_reader),
+) -> list[ItemBasic]:
+    return reader.list_item_basics(keyword=keyword, enabled=enabled, limit=limit)
+
+
+@router.get("/items/basic/{item_id}", response_model=ItemBasic)
+async def get_item_basic(
+    item_id: int,
+    reader: ItemBasicReader = Depends(get_item_basic_reader),
+) -> ItemBasic:
+    row = reader.get_item_basic(item_id=int(item_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pms_item_not_found")
+    return row
+
+
 @router.post("/items/basic/batch", response_model=ItemBasicBatchOut)
 async def batch_item_basics(
     payload: ItemIdsBatchIn,
@@ -171,10 +239,29 @@ async def batch_item_basics(
     item_ids = _clean_ids(payload.item_ids)
     if not item_ids:
         return ItemBasicBatchOut()
-    return reader.get_item_basic_batch(
-        item_ids=item_ids,
-        enabled_only=payload.enabled_only,
-    )
+    return reader.get_item_basic_batch(item_ids=item_ids, enabled_only=payload.enabled_only)
+
+
+@router.get("/items/policy-by-sku", response_model=ItemPolicy)
+async def get_item_policy_by_sku(
+    sku: str = Query(..., min_length=1, max_length=128),
+    reader: ItemPolicyReader = Depends(get_item_policy_reader),
+) -> ItemPolicy:
+    row = reader.get_item_policy_by_sku(sku=sku)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pms_item_policy_not_found")
+    return row
+
+
+@router.get("/items/{item_id}/policy", response_model=ItemPolicy)
+async def get_item_policy(
+    item_id: int,
+    reader: ItemPolicyReader = Depends(get_item_policy_reader),
+) -> ItemPolicy:
+    row = reader.get_item_policy(item_id=int(item_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pms_item_policy_not_found")
+    return row
 
 
 @router.post("/items/policies/batch", response_model=ItemPolicyBatchOut)
@@ -185,20 +272,18 @@ async def batch_item_policies(
     item_ids = _clean_ids(payload.item_ids)
     if not item_ids:
         return ItemPolicyBatchOut()
-    return reader.get_item_policy_batch(
-        item_ids=item_ids,
-        enabled_only=payload.enabled_only,
-    )
+    return reader.get_item_policy_batch(item_ids=item_ids, enabled_only=payload.enabled_only)
 
 
 @router.get("/items/report-search", response_model=ReportSearchOut)
 async def search_report_items(
     keyword: str = Query(..., min_length=1, max_length=128),
     limit: int = Query(default=50, ge=1, le=500),
+    reader: ItemReportMetaReader = Depends(get_item_report_meta_reader),
 ) -> ReportSearchOut:
-    _ = keyword
-    _ = limit
-    return ReportSearchOut(item_ids=[])
+    return ReportSearchOut(
+        item_ids=reader.search_report_item_ids_by_keyword(keyword=keyword, limit=limit)
+    )
 
 
 @router.post("/items/report-meta/batch", response_model=ItemReportMetaBatchOut)
@@ -210,6 +295,25 @@ async def batch_item_report_meta(
     if not item_ids:
         return ItemReportMetaBatchOut()
     return reader.get_item_report_meta_batch(item_ids=item_ids)
+
+
+@router.get("/items/{item_id}/uoms", response_model=list[PmsExportUom])
+async def list_item_uoms(
+    item_id: int,
+    reader: UomReader = Depends(get_uom_reader),
+) -> list[PmsExportUom]:
+    return reader.query_uoms(item_ids=[int(item_id)], item_uom_ids=[]).uoms
+
+
+@router.get("/uoms/{item_uom_id}", response_model=PmsExportUom)
+async def get_uom(
+    item_uom_id: int,
+    reader: UomReader = Depends(get_uom_reader),
+) -> PmsExportUom:
+    row = reader.get_uom(item_uom_id=int(item_uom_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pms_uom_not_found")
+    return row
 
 
 @router.post("/uoms/query", response_model=UomQueryOut)
@@ -224,9 +328,41 @@ async def query_uoms(
 
 
 @router.post("/items/uom-defaults/batch", response_model=UomDefaultsBatchOut)
-async def batch_uom_defaults(payload: UomDefaultsBatchIn) -> UomDefaultsBatchOut:
+async def batch_uom_defaults(
+    payload: UomDefaultsBatchIn,
+    reader: UomReader = Depends(get_uom_reader),
+) -> UomDefaultsBatchOut:
     item_ids = _clean_ids(payload.item_ids)
-    return UomDefaultsBatchOut(missing_item_ids=item_ids)
+    if not item_ids:
+        return UomDefaultsBatchOut()
+    return reader.get_default_or_base_batch(item_ids=item_ids, usage=payload.usage)
+
+
+@router.get("/barcodes/{barcode_id}", response_model=PmsExportBarcode)
+async def get_barcode(
+    barcode_id: int,
+    reader: BarcodeReader = Depends(get_barcode_reader),
+) -> PmsExportBarcode:
+    row = reader.get_barcode(barcode_id=int(barcode_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pms_barcode_not_found")
+    return row
+
+
+@router.get("/items/{item_id}/barcodes", response_model=list[PmsExportBarcode])
+async def list_item_barcodes(
+    item_id: int,
+    active: bool | None = Query(default=True),
+    primary_only: bool = Query(default=False),
+    reader: BarcodeReader = Depends(get_barcode_reader),
+) -> list[PmsExportBarcode]:
+    return reader.query_barcodes(
+        item_ids=[int(item_id)],
+        item_uom_ids=[],
+        barcode=None,
+        active=active,
+        primary_only=primary_only,
+    ).barcodes
 
 
 @router.post("/barcodes/query", response_model=BarcodeQueryOut)
@@ -251,20 +387,6 @@ async def probe_barcode(
     return reader.probe_barcode(barcode=payload.barcode)
 
 
-@router.post("/sku-codes/query", response_model=SkuCodeQueryOut)
-async def query_sku_codes(
-    payload: SkuCodeQueryIn,
-    reader: SkuCodeReader = Depends(get_sku_code_reader),
-) -> SkuCodeQueryOut:
-    return reader.query_sku_codes(
-        item_ids=_clean_ids(payload.item_ids),
-        sku_code_ids=_clean_ids(payload.sku_code_ids),
-        code=payload.code,
-        active=payload.active,
-        primary_only=payload.primary_only,
-    )
-
-
 @router.get(
     "/sku-codes/resolve-outbound-default",
     response_model=PmsExportSkuCodeResolution,
@@ -284,6 +406,47 @@ async def resolve_outbound_default_sku_code(
             status_code=_sku_code_error_status(exc.code),
             detail=exc.code,
         ) from exc
+
+
+@router.get("/sku-codes/{sku_code_id}", response_model=PmsExportSkuCode)
+async def get_sku_code(
+    sku_code_id: int,
+    reader: SkuCodeReader = Depends(get_sku_code_reader),
+) -> PmsExportSkuCode:
+    row = reader.get_sku_code(sku_code_id=int(sku_code_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pms_sku_code_not_found")
+    return row
+
+
+@router.get("/items/{item_id}/sku-codes", response_model=list[PmsExportSkuCode])
+async def list_item_sku_codes(
+    item_id: int,
+    active: bool | None = Query(default=True),
+    primary_only: bool = Query(default=False),
+    reader: SkuCodeReader = Depends(get_sku_code_reader),
+) -> list[PmsExportSkuCode]:
+    return reader.query_sku_codes(
+        item_ids=[int(item_id)],
+        sku_code_ids=[],
+        code=None,
+        active=active,
+        primary_only=primary_only,
+    ).sku_codes
+
+
+@router.post("/sku-codes/query", response_model=SkuCodeQueryOut)
+async def query_sku_codes(
+    payload: SkuCodeQueryIn,
+    reader: SkuCodeReader = Depends(get_sku_code_reader),
+) -> SkuCodeQueryOut:
+    return reader.query_sku_codes(
+        item_ids=_clean_ids(payload.item_ids),
+        sku_code_ids=_clean_ids(payload.sku_code_ids),
+        code=payload.code,
+        active=payload.active,
+        primary_only=payload.primary_only,
+    )
 
 
 __all__ = [

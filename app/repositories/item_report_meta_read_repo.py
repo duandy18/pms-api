@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from sqlalchemy import column, select, table
+from sqlalchemy import and_, column, or_, select, table
 from sqlalchemy.orm import Session
 
 from app.contracts.pms_read import ItemReportMeta, ItemReportMetaBatchOut
@@ -54,6 +54,44 @@ barcodes_table = table(
 class ItemReportMetaReadRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+
+
+    def search_report_item_ids_by_keyword(
+        self,
+        *,
+        keyword: str,
+        limit: int,
+    ) -> list[int]:
+        kw = str(keyword or "").strip()
+        if not kw:
+            return []
+
+        pattern = f"%{kw}%"
+        stmt = (
+            select(items_table.c.id.label("item_id"))
+            .select_from(
+                items_table.outerjoin(
+                    barcodes_table,
+                    and_(
+                        barcodes_table.c.item_id == items_table.c.id,
+                        barcodes_table.c.active.is_(True),
+                    ),
+                )
+            )
+            .where(
+                or_(
+                    items_table.c.sku.ilike(pattern),
+                    items_table.c.name.ilike(pattern),
+                    barcodes_table.c.barcode.ilike(pattern),
+                )
+            )
+            .group_by(items_table.c.id)
+            .order_by(items_table.c.id.asc())
+            .limit(max(1, min(int(limit), 500)))
+        )
+
+        rows = self.db.execute(stmt).mappings().all()
+        return [int(row["item_id"]) for row in rows]
 
     def get_item_report_meta_batch(
         self,

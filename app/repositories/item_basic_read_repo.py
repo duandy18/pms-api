@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from sqlalchemy import column, select, table
+from sqlalchemy import column, or_, select, table
 from sqlalchemy.orm import Session
 
 from app.contracts.pms_read import ItemBasic, ItemBasicBatchOut
@@ -49,6 +49,38 @@ class ItemBasicReadRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def list_item_basics(
+        self,
+        *,
+        keyword: str | None = None,
+        enabled: bool | None = None,
+        limit: int = 50,
+    ) -> list[ItemBasic]:
+        stmt = self._base_stmt()
+
+        kw = str(keyword or "").strip()
+        if kw:
+            pattern = f"%{kw}%"
+            stmt = stmt.where(
+                or_(
+                    items_table.c.sku.ilike(pattern),
+                    items_table.c.name.ilike(pattern),
+                    brands_table.c.name_cn.ilike(pattern),
+                    categories_table.c.category_name.ilike(pattern),
+                )
+            )
+
+        if enabled is not None:
+            stmt = stmt.where(items_table.c.enabled.is_(bool(enabled)))
+
+        stmt = stmt.order_by(items_table.c.id.asc()).limit(max(1, min(int(limit), 500)))
+        rows = self.db.execute(stmt).mappings().all()
+        return [self._item_basic_from_row(row) for row in rows]
+
+    def get_item_basic(self, *, item_id: int) -> ItemBasic | None:
+        result = self.get_item_basic_batch(item_ids=[int(item_id)], enabled_only=False)
+        return result.items_by_id.get(int(item_id))
+
     def get_item_basic_batch(
         self,
         *,
@@ -60,25 +92,7 @@ class ItemBasicReadRepository:
             return ItemBasicBatchOut()
 
         stmt = (
-            select(
-                items_table.c.id.label("id"),
-                items_table.c.sku.label("sku"),
-                items_table.c.name.label("name"),
-                items_table.c.spec.label("spec"),
-                items_table.c.enabled.label("enabled"),
-                items_table.c.supplier_id.label("supplier_id"),
-                brands_table.c.name_cn.label("brand"),
-                categories_table.c.category_name.label("category"),
-            )
-            .select_from(
-                items_table.outerjoin(
-                    brands_table,
-                    brands_table.c.id == items_table.c.brand_id,
-                ).outerjoin(
-                    categories_table,
-                    categories_table.c.id == items_table.c.category_id,
-                )
-            )
+            self._base_stmt()
             .where(items_table.c.id.in_(ids))
             .order_by(items_table.c.id.asc())
         )
@@ -98,26 +112,49 @@ class ItemBasicReadRepository:
                 inactive_item_ids.append(item_id)
                 continue
 
-            items_by_id[item_id] = ItemBasic(
-                id=item_id,
-                sku=str(row["sku"]),
-                name=str(row["name"]),
-                spec=_strip_or_none(row["spec"]),
-                enabled=enabled,
-                supplier_id=(
-                    int(row["supplier_id"])
-                    if row["supplier_id"] is not None
-                    else None
-                ),
-                brand=_strip_or_none(row["brand"]),
-                category=_strip_or_none(row["category"]),
-            )
+            items_by_id[item_id] = self._item_basic_from_row(row)
 
         return ItemBasicBatchOut(
             items_by_id=items_by_id,
             missing_item_ids=sorted(set(ids) - found_ids),
             inactive_item_ids=sorted(inactive_item_ids),
             errors=[],
+        )
+
+    @staticmethod
+    def _base_stmt():
+        return select(
+            items_table.c.id.label("id"),
+            items_table.c.sku.label("sku"),
+            items_table.c.name.label("name"),
+            items_table.c.spec.label("spec"),
+            items_table.c.enabled.label("enabled"),
+            items_table.c.supplier_id.label("supplier_id"),
+            brands_table.c.name_cn.label("brand"),
+            categories_table.c.category_name.label("category"),
+        ).select_from(
+            items_table.outerjoin(
+                brands_table,
+                brands_table.c.id == items_table.c.brand_id,
+            ).outerjoin(
+                categories_table,
+                categories_table.c.id == items_table.c.category_id,
+            )
+        )
+
+    @staticmethod
+    def _item_basic_from_row(row) -> ItemBasic:
+        return ItemBasic(
+            id=int(row["id"]),
+            sku=str(row["sku"]),
+            name=str(row["name"]),
+            spec=_strip_or_none(row["spec"]),
+            enabled=bool(row["enabled"]),
+            supplier_id=(
+                int(row["supplier_id"]) if row["supplier_id"] is not None else None
+            ),
+            brand=_strip_or_none(row["brand"]),
+            category=_strip_or_none(row["category"]),
         )
 
 
