@@ -1,7 +1,10 @@
 # app/routers/pms_read_v1.py
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from typing import Protocol
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from app.contracts.pms_read import (
     BarcodeProbeIn,
@@ -23,12 +26,28 @@ from app.contracts.pms_read import (
     UomQueryIn,
     UomQueryOut,
 )
+from app.db.session import get_db
+from app.repositories.item_basic_read_repo import ItemBasicReadRepository
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
 
+class ItemBasicReader(Protocol):
+    def get_item_basic_batch(
+        self,
+        *,
+        item_ids: list[int],
+        enabled_only: bool,
+    ) -> ItemBasicBatchOut:
+        ...
+
+
 def _clean_ids(values: list[int]) -> list[int]:
     return sorted({int(value) for value in values if int(value) > 0})
+
+
+def get_item_basic_reader(db: Session = Depends(get_db)) -> ItemBasicReader:
+    return ItemBasicReadRepository(db)
 
 
 @router.get("/health", response_model=PmsReadHealthOut)
@@ -37,9 +56,17 @@ async def read_v1_health() -> PmsReadHealthOut:
 
 
 @router.post("/items/basic/batch", response_model=ItemBasicBatchOut)
-async def batch_item_basics(payload: ItemIdsBatchIn) -> ItemBasicBatchOut:
+async def batch_item_basics(
+    payload: ItemIdsBatchIn,
+    reader: ItemBasicReader = Depends(get_item_basic_reader),
+) -> ItemBasicBatchOut:
     item_ids = _clean_ids(payload.item_ids)
-    return ItemBasicBatchOut(missing_item_ids=item_ids)
+    if not item_ids:
+        return ItemBasicBatchOut()
+    return reader.get_item_basic_batch(
+        item_ids=item_ids,
+        enabled_only=payload.enabled_only,
+    )
 
 
 @router.post("/items/policies/batch", response_model=ItemPolicyBatchOut)
@@ -113,4 +140,4 @@ async def resolve_outbound_default_sku_code(
     )
 
 
-__all__ = ["router"]
+__all__ = ["get_item_basic_reader", "router"]

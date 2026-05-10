@@ -3,8 +3,25 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.contracts.pms_read import ItemBasic, ItemPolicy, PmsExportSkuCodeResolution
+from app.contracts.pms_read import (
+    ItemBasic,
+    ItemBasicBatchOut,
+    ItemPolicy,
+    PmsExportSkuCodeResolution,
+)
 from app.main import app
+from app.routers.pms_read_v1 import get_item_basic_reader
+
+
+class FakeItemBasicReader:
+    def get_item_basic_batch(
+        self,
+        *,
+        item_ids: list[int],
+        enabled_only: bool,
+    ) -> ItemBasicBatchOut:
+        _ = enabled_only
+        return ItemBasicBatchOut(missing_item_ids=item_ids)
 
 
 def test_contract_models_validate_current_read_shapes() -> None:
@@ -70,13 +87,17 @@ def test_read_v1_routes_are_mounted() -> None:
     assert "/pms/read/v1/sku-codes/resolve-outbound-default" in paths
 
 
-def test_batch_item_basic_stub_returns_missing_ids() -> None:
+def test_batch_item_basic_endpoint_uses_reader_dependency() -> None:
+    app.dependency_overrides[get_item_basic_reader] = lambda: FakeItemBasicReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/items/basic/batch",
-        json={"item_ids": [2, 1, 1], "enabled_only": True},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/items/basic/batch",
+            json={"item_ids": [2, 1, 1], "enabled_only": True},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
