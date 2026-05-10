@@ -74,6 +74,17 @@ class SkuCodeReadRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+
+    def get_sku_code(self, *, sku_code_id: int) -> PmsExportSkuCode | None:
+        result = self.query_sku_codes(
+            item_ids=[],
+            sku_code_ids=[int(sku_code_id)],
+            code=None,
+            active=None,
+            primary_only=False,
+        )
+        return result.sku_codes[0] if result.sku_codes else None
+
     def query_sku_codes(
         self,
         *,

@@ -83,6 +83,16 @@ class BarcodeReadRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+
+    def get_barcode(self, *, barcode_id: int) -> PmsExportBarcode | None:
+        stmt = (
+            self._base_barcode_stmt()
+            .where(barcodes_table.c.id == int(barcode_id))
+            .limit(1)
+        )
+        row = self.db.execute(stmt).mappings().first()
+        return self._barcode_contract(row) if row is not None else None
+
     def query_barcodes(
         self,
         *,
