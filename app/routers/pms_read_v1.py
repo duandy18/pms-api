@@ -29,6 +29,7 @@ from app.contracts.pms_read import (
 from app.db.session import get_db
 from app.repositories.item_basic_read_repo import ItemBasicReadRepository
 from app.repositories.item_policy_read_repo import ItemPolicyReadRepository
+from app.repositories.item_report_meta_read_repo import ItemReportMetaReadRepository
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
@@ -53,6 +54,15 @@ class ItemPolicyReader(Protocol):
         ...
 
 
+class ItemReportMetaReader(Protocol):
+    def get_item_report_meta_batch(
+        self,
+        *,
+        item_ids: list[int],
+    ) -> ItemReportMetaBatchOut:
+        ...
+
+
 def _clean_ids(values: list[int]) -> list[int]:
     return sorted({int(value) for value in values if int(value) > 0})
 
@@ -63,6 +73,10 @@ def get_item_basic_reader(db: Session = Depends(get_db)) -> ItemBasicReader:
 
 def get_item_policy_reader(db: Session = Depends(get_db)) -> ItemPolicyReader:
     return ItemPolicyReadRepository(db)
+
+
+def get_item_report_meta_reader(db: Session = Depends(get_db)) -> ItemReportMetaReader:
+    return ItemReportMetaReadRepository(db)
 
 
 @router.get("/health", response_model=PmsReadHealthOut)
@@ -109,9 +123,14 @@ async def search_report_items(
 
 
 @router.post("/items/report-meta/batch", response_model=ItemReportMetaBatchOut)
-async def batch_item_report_meta(payload: ItemIdsBatchIn) -> ItemReportMetaBatchOut:
+async def batch_item_report_meta(
+    payload: ItemIdsBatchIn,
+    reader: ItemReportMetaReader = Depends(get_item_report_meta_reader),
+) -> ItemReportMetaBatchOut:
     item_ids = _clean_ids(payload.item_ids)
-    return ItemReportMetaBatchOut(missing_item_ids=item_ids)
+    if not item_ids:
+        return ItemReportMetaBatchOut()
+    return reader.get_item_report_meta_batch(item_ids=item_ids)
 
 
 @router.post("/uoms/query", response_model=UomQueryOut)
@@ -163,4 +182,9 @@ async def resolve_outbound_default_sku_code(
     )
 
 
-__all__ = ["get_item_basic_reader", "get_item_policy_reader", "router"]
+__all__ = [
+    "get_item_basic_reader",
+    "get_item_policy_reader",
+    "get_item_report_meta_reader",
+    "router",
+]

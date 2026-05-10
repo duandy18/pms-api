@@ -3,9 +3,17 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.contracts.pms_read import ItemBasicBatchOut, ItemPolicyBatchOut
+from app.contracts.pms_read import (
+    ItemBasicBatchOut,
+    ItemPolicyBatchOut,
+    ItemReportMetaBatchOut,
+)
 from app.main import app
-from app.routers.pms_read_v1 import get_item_basic_reader, get_item_policy_reader
+from app.routers.pms_read_v1 import (
+    get_item_basic_reader,
+    get_item_policy_reader,
+    get_item_report_meta_reader,
+)
 
 
 class FakeItemBasicReader:
@@ -28,6 +36,15 @@ class FakeItemPolicyReader:
     ) -> ItemPolicyBatchOut:
         _ = enabled_only
         return ItemPolicyBatchOut(missing_item_ids=item_ids)
+
+
+class FakeItemReportMetaReader:
+    def get_item_report_meta_batch(
+        self,
+        *,
+        item_ids: list[int],
+    ) -> ItemReportMetaBatchOut:
+        return ItemReportMetaBatchOut(missing_item_ids=item_ids)
 
 
 def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
@@ -72,13 +89,17 @@ def test_item_policy_batch_cleans_ids_before_reader_dependency() -> None:
     }
 
 
-def test_item_report_meta_batch_stub_cleans_ids_and_returns_missing() -> None:
+def test_item_report_meta_batch_cleans_ids_before_reader_dependency() -> None:
+    app.dependency_overrides[get_item_report_meta_reader] = lambda: FakeItemReportMetaReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/items/report-meta/batch",
-        json={"item_ids": [9, 8, 8, -2], "enabled_only": False},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/items/report-meta/batch",
+            json={"item_ids": [9, 8, 8, -2], "enabled_only": False},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
