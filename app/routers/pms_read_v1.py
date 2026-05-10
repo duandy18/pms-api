@@ -28,6 +28,7 @@ from app.contracts.pms_read import (
 )
 from app.db.session import get_db
 from app.repositories.item_basic_read_repo import ItemBasicReadRepository
+from app.repositories.item_policy_read_repo import ItemPolicyReadRepository
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
@@ -42,12 +43,26 @@ class ItemBasicReader(Protocol):
         ...
 
 
+class ItemPolicyReader(Protocol):
+    def get_item_policy_batch(
+        self,
+        *,
+        item_ids: list[int],
+        enabled_only: bool,
+    ) -> ItemPolicyBatchOut:
+        ...
+
+
 def _clean_ids(values: list[int]) -> list[int]:
     return sorted({int(value) for value in values if int(value) > 0})
 
 
 def get_item_basic_reader(db: Session = Depends(get_db)) -> ItemBasicReader:
     return ItemBasicReadRepository(db)
+
+
+def get_item_policy_reader(db: Session = Depends(get_db)) -> ItemPolicyReader:
+    return ItemPolicyReadRepository(db)
 
 
 @router.get("/health", response_model=PmsReadHealthOut)
@@ -70,9 +85,17 @@ async def batch_item_basics(
 
 
 @router.post("/items/policies/batch", response_model=ItemPolicyBatchOut)
-async def batch_item_policies(payload: ItemIdsBatchIn) -> ItemPolicyBatchOut:
+async def batch_item_policies(
+    payload: ItemIdsBatchIn,
+    reader: ItemPolicyReader = Depends(get_item_policy_reader),
+) -> ItemPolicyBatchOut:
     item_ids = _clean_ids(payload.item_ids)
-    return ItemPolicyBatchOut(missing_item_ids=item_ids)
+    if not item_ids:
+        return ItemPolicyBatchOut()
+    return reader.get_item_policy_batch(
+        item_ids=item_ids,
+        enabled_only=payload.enabled_only,
+    )
 
 
 @router.get("/items/report-search", response_model=ReportSearchOut)
@@ -140,4 +163,4 @@ async def resolve_outbound_default_sku_code(
     )
 
 
-__all__ = ["get_item_basic_reader", "router"]
+__all__ = ["get_item_basic_reader", "get_item_policy_reader", "router"]
