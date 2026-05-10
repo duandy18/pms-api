@@ -4,13 +4,16 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.contracts.pms_read import (
+    BarcodeProbeOut,
+    BarcodeProbeStatus,
+    BarcodeQueryOut,
     ItemBasic,
     ItemBasicBatchOut,
     ItemPolicy,
     PmsExportSkuCodeResolution,
 )
 from app.main import app
-from app.routers.pms_read_v1 import get_item_basic_reader
+from app.routers.pms_read_v1 import get_barcode_reader, get_item_basic_reader
 
 
 class FakeItemBasicReader:
@@ -22,6 +25,31 @@ class FakeItemBasicReader:
     ) -> ItemBasicBatchOut:
         _ = enabled_only
         return ItemBasicBatchOut(missing_item_ids=item_ids)
+
+
+class FakeBarcodeReader:
+    def query_barcodes(
+        self,
+        *,
+        item_ids: list[int],
+        item_uom_ids: list[int],
+        barcode: str | None,
+        active: bool | None,
+        primary_only: bool,
+    ) -> BarcodeQueryOut:
+        _ = item_ids
+        _ = item_uom_ids
+        _ = barcode
+        _ = active
+        _ = primary_only
+        return BarcodeQueryOut()
+
+    def probe_barcode(self, *, barcode: str) -> BarcodeProbeOut:
+        return BarcodeProbeOut(
+            ok=True,
+            status=BarcodeProbeStatus.UNBOUND,
+            barcode=barcode.strip(),
+        )
 
 
 def test_contract_models_validate_current_read_shapes() -> None:
@@ -109,12 +137,16 @@ def test_batch_item_basic_endpoint_uses_reader_dependency() -> None:
 
 
 def test_barcode_probe_stub_returns_unbound() -> None:
+    app.dependency_overrides[get_barcode_reader] = lambda: FakeBarcodeReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/barcodes/probe",
-        json={"barcode": "6900000000001"},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/barcodes/probe",
+            json={"barcode": "6900000000001"},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json()["status"] == "UNBOUND"

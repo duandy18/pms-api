@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.contracts.pms_read import (
     BarcodeProbeIn,
     BarcodeProbeOut,
-    BarcodeProbeStatus,
     BarcodeQueryIn,
     BarcodeQueryOut,
     ItemBasicBatchOut,
@@ -30,6 +29,8 @@ from app.db.session import get_db
 from app.repositories.item_basic_read_repo import ItemBasicReadRepository
 from app.repositories.item_policy_read_repo import ItemPolicyReadRepository
 from app.repositories.item_report_meta_read_repo import ItemReportMetaReadRepository
+from app.repositories.uom_read_repo import UomReadRepository
+from app.repositories.barcode_read_repo import BarcodeReadRepository
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
@@ -63,6 +64,32 @@ class ItemReportMetaReader(Protocol):
         ...
 
 
+class UomReader(Protocol):
+    def query_uoms(
+        self,
+        *,
+        item_ids: list[int],
+        item_uom_ids: list[int],
+    ) -> UomQueryOut:
+        ...
+
+
+class BarcodeReader(Protocol):
+    def query_barcodes(
+        self,
+        *,
+        item_ids: list[int],
+        item_uom_ids: list[int],
+        barcode: str | None,
+        active: bool | None,
+        primary_only: bool,
+    ) -> BarcodeQueryOut:
+        ...
+
+    def probe_barcode(self, *, barcode: str) -> BarcodeProbeOut:
+        ...
+
+
 def _clean_ids(values: list[int]) -> list[int]:
     return sorted({int(value) for value in values if int(value) > 0})
 
@@ -77,6 +104,14 @@ def get_item_policy_reader(db: Session = Depends(get_db)) -> ItemPolicyReader:
 
 def get_item_report_meta_reader(db: Session = Depends(get_db)) -> ItemReportMetaReader:
     return ItemReportMetaReadRepository(db)
+
+
+def get_uom_reader(db: Session = Depends(get_db)) -> UomReader:
+    return UomReadRepository(db)
+
+
+def get_barcode_reader(db: Session = Depends(get_db)) -> BarcodeReader:
+    return BarcodeReadRepository(db)
 
 
 @router.get("/health", response_model=PmsReadHealthOut)
@@ -134,9 +169,14 @@ async def batch_item_report_meta(
 
 
 @router.post("/uoms/query", response_model=UomQueryOut)
-async def query_uoms(payload: UomQueryIn) -> UomQueryOut:
-    _ = payload
-    return UomQueryOut()
+async def query_uoms(
+    payload: UomQueryIn,
+    reader: UomReader = Depends(get_uom_reader),
+) -> UomQueryOut:
+    return reader.query_uoms(
+        item_ids=_clean_ids(payload.item_ids),
+        item_uom_ids=_clean_ids(payload.item_uom_ids),
+    )
 
 
 @router.post("/items/uom-defaults/batch", response_model=UomDefaultsBatchOut)
@@ -146,18 +186,25 @@ async def batch_uom_defaults(payload: UomDefaultsBatchIn) -> UomDefaultsBatchOut
 
 
 @router.post("/barcodes/query", response_model=BarcodeQueryOut)
-async def query_barcodes(payload: BarcodeQueryIn) -> BarcodeQueryOut:
-    _ = payload
-    return BarcodeQueryOut()
+async def query_barcodes(
+    payload: BarcodeQueryIn,
+    reader: BarcodeReader = Depends(get_barcode_reader),
+) -> BarcodeQueryOut:
+    return reader.query_barcodes(
+        item_ids=_clean_ids(payload.item_ids),
+        item_uom_ids=_clean_ids(payload.item_uom_ids),
+        barcode=payload.barcode,
+        active=payload.active,
+        primary_only=payload.primary_only,
+    )
 
 
 @router.post("/barcodes/probe", response_model=BarcodeProbeOut)
-async def probe_barcode(payload: BarcodeProbeIn) -> BarcodeProbeOut:
-    return BarcodeProbeOut(
-        ok=True,
-        status=BarcodeProbeStatus.UNBOUND,
-        barcode=payload.barcode.strip(),
-    )
+async def probe_barcode(
+    payload: BarcodeProbeIn,
+    reader: BarcodeReader = Depends(get_barcode_reader),
+) -> BarcodeProbeOut:
+    return reader.probe_barcode(barcode=payload.barcode)
 
 
 @router.post("/sku-codes/query", response_model=SkuCodeQueryOut)
@@ -183,8 +230,10 @@ async def resolve_outbound_default_sku_code(
 
 
 __all__ = [
+    "get_barcode_reader",
     "get_item_basic_reader",
     "get_item_policy_reader",
     "get_item_report_meta_reader",
+    "get_uom_reader",
     "router",
 ]
