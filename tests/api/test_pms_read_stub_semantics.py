@@ -3,16 +3,33 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.contracts.pms_read import ItemBasicBatchOut
 from app.main import app
+from app.routers.pms_read_v1 import get_item_basic_reader
 
 
-def test_item_basic_batch_stub_cleans_ids_and_returns_missing() -> None:
+class FakeItemBasicReader:
+    def get_item_basic_batch(
+        self,
+        *,
+        item_ids: list[int],
+        enabled_only: bool,
+    ) -> ItemBasicBatchOut:
+        _ = enabled_only
+        return ItemBasicBatchOut(missing_item_ids=item_ids)
+
+
+def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
+    app.dependency_overrides[get_item_basic_reader] = lambda: FakeItemBasicReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/items/basic/batch",
-        json={"item_ids": [3, 2, 2, 0, -1], "enabled_only": True},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/items/basic/batch",
+            json={"item_ids": [3, 2, 2, 0, -1], "enabled_only": True},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
