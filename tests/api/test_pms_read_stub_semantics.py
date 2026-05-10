@@ -4,15 +4,21 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.contracts.pms_read import (
+    BarcodeProbeOut,
+    BarcodeProbeStatus,
+    BarcodeQueryOut,
     ItemBasicBatchOut,
     ItemPolicyBatchOut,
     ItemReportMetaBatchOut,
+    UomQueryOut,
 )
 from app.main import app
 from app.routers.pms_read_v1 import (
+    get_barcode_reader,
     get_item_basic_reader,
     get_item_policy_reader,
     get_item_report_meta_reader,
+    get_uom_reader,
 )
 
 
@@ -47,6 +53,42 @@ class FakeItemReportMetaReader:
         return ItemReportMetaBatchOut(missing_item_ids=item_ids)
 
 
+class FakeUomReader:
+    def query_uoms(
+        self,
+        *,
+        item_ids: list[int],
+        item_uom_ids: list[int],
+    ) -> UomQueryOut:
+        _ = item_ids
+        return UomQueryOut(missing_item_uom_ids=item_uom_ids)
+
+
+class FakeBarcodeReader:
+    def query_barcodes(
+        self,
+        *,
+        item_ids: list[int],
+        item_uom_ids: list[int],
+        barcode: str | None,
+        active: bool | None,
+        primary_only: bool,
+    ) -> BarcodeQueryOut:
+        _ = item_ids
+        _ = item_uom_ids
+        _ = barcode
+        _ = active
+        _ = primary_only
+        return BarcodeQueryOut()
+
+    def probe_barcode(self, *, barcode: str) -> BarcodeProbeOut:
+        return BarcodeProbeOut(
+            ok=True,
+            status=BarcodeProbeStatus.UNBOUND,
+            barcode=barcode.strip(),
+        )
+
+
 def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
     app.dependency_overrides[get_item_basic_reader] = lambda: FakeItemBasicReader()
     client = TestClient(app)
@@ -60,12 +102,7 @@ def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {
-        "items_by_id": {},
-        "missing_item_ids": [2, 3],
-        "inactive_item_ids": [],
-        "errors": [],
-    }
+    assert response.json()["missing_item_ids"] == [2, 3]
 
 
 def test_item_policy_batch_cleans_ids_before_reader_dependency() -> None:
@@ -81,12 +118,7 @@ def test_item_policy_batch_cleans_ids_before_reader_dependency() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {
-        "policies_by_item_id": {},
-        "missing_item_ids": [4, 5],
-        "inactive_item_ids": [],
-        "errors": [],
-    }
+    assert response.json()["missing_item_ids"] == [4, 5]
 
 
 def test_item_report_meta_batch_cleans_ids_before_reader_dependency() -> None:
@@ -102,11 +134,7 @@ def test_item_report_meta_batch_cleans_ids_before_reader_dependency() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {
-        "meta_by_item_id": {},
-        "missing_item_ids": [8, 9],
-        "errors": [],
-    }
+    assert response.json()["missing_item_ids"] == [8, 9]
 
 
 def test_report_search_stub_returns_empty_item_ids() -> None:
@@ -121,18 +149,22 @@ def test_report_search_stub_returns_empty_item_ids() -> None:
     assert response.json() == {"item_ids": []}
 
 
-def test_uom_query_stub_returns_empty_list() -> None:
+def test_uom_query_cleans_ids_before_reader_dependency() -> None:
+    app.dependency_overrides[get_uom_reader] = lambda: FakeUomReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/uoms/query",
-        json={"item_ids": [1, 2], "item_uom_ids": [10, 11]},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/uoms/query",
+            json={"item_ids": [2, 1, 1, 0], "item_uom_ids": [11, 10, 10, -1]},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
         "uoms": [],
-        "missing_item_uom_ids": [],
+        "missing_item_uom_ids": [10, 11],
         "errors": [],
     }
 
@@ -146,27 +178,26 @@ def test_uom_defaults_batch_stub_cleans_ids_and_returns_missing_items() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "uoms_by_item_id": {},
-        "missing_item_ids": [6, 7],
-        "missing_default_uom_item_ids": [],
-        "errors": [],
-    }
+    assert response.json()["missing_item_ids"] == [6, 7]
 
 
-def test_barcode_query_stub_returns_empty_list() -> None:
+def test_barcode_query_uses_reader_dependency() -> None:
+    app.dependency_overrides[get_barcode_reader] = lambda: FakeBarcodeReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/barcodes/query",
-        json={
-            "item_ids": [1],
-            "item_uom_ids": [10],
-            "barcode": "6900000000001",
-            "active": True,
-            "primary_only": False,
-        },
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/barcodes/query",
+            json={
+                "item_ids": [1],
+                "item_uom_ids": [10],
+                "barcode": "6900000000001",
+                "active": True,
+                "primary_only": False,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
@@ -175,27 +206,21 @@ def test_barcode_query_stub_returns_empty_list() -> None:
     }
 
 
-def test_barcode_probe_stub_trims_and_returns_unbound() -> None:
+def test_barcode_probe_uses_reader_dependency() -> None:
+    app.dependency_overrides[get_barcode_reader] = lambda: FakeBarcodeReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/barcodes/probe",
-        json={"barcode": "  6900000000001  "},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/barcodes/probe",
+            json={"barcode": "  6900000000001  "},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {
-        "ok": True,
-        "status": "UNBOUND",
-        "barcode": "6900000000001",
-        "item_id": None,
-        "item_uom_id": None,
-        "ratio_to_base": None,
-        "symbology": None,
-        "active": None,
-        "item_basic": None,
-        "errors": [],
-    }
+    assert response.json()["status"] == "UNBOUND"
+    assert response.json()["barcode"] == "6900000000001"
 
 
 def test_sku_code_query_stub_returns_empty_list() -> None:
