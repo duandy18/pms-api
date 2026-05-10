@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.contracts.pms_read import ItemBasicBatchOut
+from app.contracts.pms_read import ItemBasicBatchOut, ItemPolicyBatchOut
 from app.main import app
-from app.routers.pms_read_v1 import get_item_basic_reader
+from app.routers.pms_read_v1 import get_item_basic_reader, get_item_policy_reader
 
 
 class FakeItemBasicReader:
@@ -17,6 +17,17 @@ class FakeItemBasicReader:
     ) -> ItemBasicBatchOut:
         _ = enabled_only
         return ItemBasicBatchOut(missing_item_ids=item_ids)
+
+
+class FakeItemPolicyReader:
+    def get_item_policy_batch(
+        self,
+        *,
+        item_ids: list[int],
+        enabled_only: bool,
+    ) -> ItemPolicyBatchOut:
+        _ = enabled_only
+        return ItemPolicyBatchOut(missing_item_ids=item_ids)
 
 
 def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
@@ -40,13 +51,17 @@ def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
     }
 
 
-def test_item_policy_batch_stub_cleans_ids_and_returns_missing() -> None:
+def test_item_policy_batch_cleans_ids_before_reader_dependency() -> None:
+    app.dependency_overrides[get_item_policy_reader] = lambda: FakeItemPolicyReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/items/policies/batch",
-        json={"item_ids": [5, 4, 5, 0], "enabled_only": False},
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/items/policies/batch",
+            json={"item_ids": [5, 4, 5, 0], "enabled_only": False},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
