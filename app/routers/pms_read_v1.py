@@ -31,6 +31,10 @@ from app.repositories.item_policy_read_repo import ItemPolicyReadRepository
 from app.repositories.item_report_meta_read_repo import ItemReportMetaReadRepository
 from app.repositories.uom_read_repo import UomReadRepository
 from app.repositories.barcode_read_repo import BarcodeReadRepository
+from app.repositories.sku_code_read_repo import (
+    SkuCodeReadRepository,
+    SkuCodeResolveError,
+)
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
@@ -90,6 +94,42 @@ class BarcodeReader(Protocol):
         ...
 
 
+class SkuCodeReader(Protocol):
+    def query_sku_codes(
+        self,
+        *,
+        item_ids: list[int],
+        sku_code_ids: list[int],
+        code: str | None,
+        active: bool | None,
+        primary_only: bool,
+    ) -> SkuCodeQueryOut:
+        ...
+
+    def resolve_outbound_default_sku_code(
+        self,
+        *,
+        code: str,
+        enabled_only: bool,
+    ) -> PmsExportSkuCodeResolution:
+        ...
+
+
+
+def _sku_code_error_status(code: str) -> int:
+    if code == "pms_invalid_sku_code":
+        return status.HTTP_422_UNPROCESSABLE_ENTITY
+    if code == "pms_sku_code_not_found":
+        return status.HTTP_404_NOT_FOUND
+    if code in {
+        "pms_sku_code_inactive",
+        "pms_item_inactive",
+        "pms_outbound_uom_missing",
+    }:
+        return status.HTTP_409_CONFLICT
+    return status.HTTP_500_INTERNAL_SERVER_ERROR
+
+
 def _clean_ids(values: list[int]) -> list[int]:
     return sorted({int(value) for value in values if int(value) > 0})
 
@@ -112,6 +152,10 @@ def get_uom_reader(db: Session = Depends(get_db)) -> UomReader:
 
 def get_barcode_reader(db: Session = Depends(get_db)) -> BarcodeReader:
     return BarcodeReadRepository(db)
+
+
+def get_sku_code_reader(db: Session = Depends(get_db)) -> SkuCodeReader:
+    return SkuCodeReadRepository(db)
 
 
 @router.get("/health", response_model=PmsReadHealthOut)
@@ -208,9 +252,17 @@ async def probe_barcode(
 
 
 @router.post("/sku-codes/query", response_model=SkuCodeQueryOut)
-async def query_sku_codes(payload: SkuCodeQueryIn) -> SkuCodeQueryOut:
-    _ = payload
-    return SkuCodeQueryOut()
+async def query_sku_codes(
+    payload: SkuCodeQueryIn,
+    reader: SkuCodeReader = Depends(get_sku_code_reader),
+) -> SkuCodeQueryOut:
+    return reader.query_sku_codes(
+        item_ids=_clean_ids(payload.item_ids),
+        sku_code_ids=_clean_ids(payload.sku_code_ids),
+        code=payload.code,
+        active=payload.active,
+        primary_only=payload.primary_only,
+    )
 
 
 @router.get(
@@ -220,13 +272,18 @@ async def query_sku_codes(payload: SkuCodeQueryIn) -> SkuCodeQueryOut:
 async def resolve_outbound_default_sku_code(
     code: str = Query(..., min_length=1, max_length=128),
     enabled_only: bool = Query(default=True),
+    reader: SkuCodeReader = Depends(get_sku_code_reader),
 ) -> PmsExportSkuCodeResolution:
-    _ = code
-    _ = enabled_only
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="pms_read_sku_code_resolution_not_implemented",
-    )
+    try:
+        return reader.resolve_outbound_default_sku_code(
+            code=code,
+            enabled_only=enabled_only,
+        )
+    except SkuCodeResolveError as exc:
+        raise HTTPException(
+            status_code=_sku_code_error_status(exc.code),
+            detail=exc.code,
+        ) from exc
 
 
 __all__ = [
@@ -234,6 +291,7 @@ __all__ = [
     "get_item_basic_reader",
     "get_item_policy_reader",
     "get_item_report_meta_reader",
+    "get_sku_code_reader",
     "get_uom_reader",
     "router",
 ]

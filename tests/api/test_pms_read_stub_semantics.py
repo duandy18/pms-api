@@ -10,14 +10,18 @@ from app.contracts.pms_read import (
     ItemBasicBatchOut,
     ItemPolicyBatchOut,
     ItemReportMetaBatchOut,
+    PmsExportSkuCodeResolution,
+    SkuCodeQueryOut,
     UomQueryOut,
 )
 from app.main import app
+from app.repositories.sku_code_read_repo import SkuCodeResolveError
 from app.routers.pms_read_v1 import (
     get_barcode_reader,
     get_item_basic_reader,
     get_item_policy_reader,
     get_item_report_meta_reader,
+    get_sku_code_reader,
     get_uom_reader,
 )
 
@@ -87,6 +91,34 @@ class FakeBarcodeReader:
             status=BarcodeProbeStatus.UNBOUND,
             barcode=barcode.strip(),
         )
+
+
+class FakeSkuCodeReader:
+    def query_sku_codes(
+        self,
+        *,
+        item_ids: list[int],
+        sku_code_ids: list[int],
+        code: str | None,
+        active: bool | None,
+        primary_only: bool,
+    ) -> SkuCodeQueryOut:
+        _ = item_ids
+        _ = sku_code_ids
+        _ = code
+        _ = active
+        _ = primary_only
+        return SkuCodeQueryOut()
+
+    def resolve_outbound_default_sku_code(
+        self,
+        *,
+        code: str,
+        enabled_only: bool,
+    ) -> PmsExportSkuCodeResolution:
+        _ = code
+        _ = enabled_only
+        raise SkuCodeResolveError("pms_sku_code_not_found")
 
 
 def test_item_basic_batch_cleans_ids_before_reader_dependency() -> None:
@@ -223,19 +255,23 @@ def test_barcode_probe_uses_reader_dependency() -> None:
     assert response.json()["barcode"] == "6900000000001"
 
 
-def test_sku_code_query_stub_returns_empty_list() -> None:
+def test_sku_code_query_uses_reader_dependency() -> None:
+    app.dependency_overrides[get_sku_code_reader] = lambda: FakeSkuCodeReader()
     client = TestClient(app)
 
-    response = client.post(
-        "/pms/read/v1/sku-codes/query",
-        json={
-            "item_ids": [1],
-            "sku_code_ids": [10],
-            "code": "SKU001",
-            "active": True,
-            "primary_only": False,
-        },
-    )
+    try:
+        response = client.post(
+            "/pms/read/v1/sku-codes/query",
+            json={
+                "item_ids": [1],
+                "sku_code_ids": [10],
+                "code": "SKU001",
+                "active": True,
+                "primary_only": False,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
@@ -244,15 +280,19 @@ def test_sku_code_query_stub_returns_empty_list() -> None:
     }
 
 
-def test_sku_code_resolve_stub_returns_501_until_database_is_connected() -> None:
+def test_sku_code_resolve_maps_reader_error() -> None:
+    app.dependency_overrides[get_sku_code_reader] = lambda: FakeSkuCodeReader()
     client = TestClient(app)
 
-    response = client.get(
-        "/pms/read/v1/sku-codes/resolve-outbound-default",
-        params={"code": "SKU001", "enabled_only": True},
-    )
+    try:
+        response = client.get(
+            "/pms/read/v1/sku-codes/resolve-outbound-default",
+            params={"code": "SKU001", "enabled_only": True},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
-    assert response.status_code == 501
+    assert response.status_code == 404
     assert response.json() == {
-        "detail": "pms_read_sku_code_resolution_not_implemented",
+        "detail": "pms_sku_code_not_found",
     }
