@@ -79,6 +79,10 @@ def test_pms_read_v1_routes_are_mounted() -> None:
 
     expected = {
         ("GET", "/pms/read/v1/health"),
+        ("GET", "/pms/read/v1/projection-feed/items"),
+        ("GET", "/pms/read/v1/projection-feed/uoms"),
+        ("GET", "/pms/read/v1/projection-feed/sku-codes"),
+        ("GET", "/pms/read/v1/projection-feed/barcodes"),
         ("GET", "/pms/read/v1/items/basic"),
         ("GET", "/pms/read/v1/items/basic/{item_id}"),
         ("POST", "/pms/read/v1/items/basic/batch"),

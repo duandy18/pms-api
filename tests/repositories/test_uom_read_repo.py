@@ -24,7 +24,8 @@ def _make_session() -> Session:
                   is_base BOOLEAN NOT NULL,
                   is_purchase_default BOOLEAN NOT NULL,
                   is_inbound_default BOOLEAN NOT NULL,
-                  is_outbound_default BOOLEAN NOT NULL
+                  is_outbound_default BOOLEAN NOT NULL,
+                  updated_at TIMESTAMP NOT NULL
                 )
                 """
             )
@@ -42,12 +43,13 @@ def _make_session() -> Session:
                   is_base,
                   is_purchase_default,
                   is_inbound_default,
-                  is_outbound_default
+                  is_outbound_default,
+                  updated_at
                 )
                 VALUES
-                  (10, 1, 'PCS', '件', 1, 0.500, 1, 0, 1, 1),
-                  (11, 1, 'BOX', NULL, 12, NULL, 0, 1, 0, 0),
-                  (20, 2, 'BAG', '袋', 6, 1.250, 0, 0, 0, 1)
+                  (10, 1, 'PCS', '件', 1, 0.500, 1, 0, 1, 1, '2026-01-01 00:00:00'),
+                  (11, 1, 'BOX', NULL, 12, NULL, 0, 1, 0, 0, '2026-01-02 00:00:00'),
+                  (20, 2, 'BAG', '袋', 6, 1.250, 0, 0, 0, 1, '2026-01-03 00:00:00')
                 """
             )
         )
@@ -79,6 +81,23 @@ def test_uom_repository_queries_by_item_ids() -> None:
         box = result.uoms[1]
         assert box.uom_name == "BOX"
         assert box.net_weight_kg is None
+    finally:
+        session.close()
+
+
+def test_uom_repository_projection_feed_is_paginated() -> None:
+    session = _make_session()
+    try:
+        repo = UomReadRepository(session)
+
+        rows = repo.list_projection_feed(limit=2, offset=1)
+
+        assert [row.item_uom_id for row in rows] == [11, 20]
+        assert rows[0].item_id == 1
+        assert rows[0].uom == "BOX"
+        assert rows[0].uom_name == "BOX"
+        assert rows[0].ratio_to_base == 12
+        assert rows[0].pms_updated_at is not None
     finally:
         session.close()
 

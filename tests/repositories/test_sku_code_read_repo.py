@@ -36,7 +36,8 @@ def _make_session() -> Session:
                   is_active BOOLEAN NOT NULL,
                   effective_from TIMESTAMP,
                   effective_to TIMESTAMP,
-                  remark VARCHAR(255)
+                  remark VARCHAR(255),
+                  updated_at TIMESTAMP NOT NULL
                 )
                 """
             )
@@ -80,14 +81,15 @@ def _make_session() -> Session:
                   is_active,
                   effective_from,
                   effective_to,
-                  remark
+                  remark,
+                  updated_at
                 )
                 VALUES
-                  (10, 1, 'SKU001', 'PRIMARY', 1, 1, NULL, NULL, 'primary'),
-                  (11, 1, 'SKU001-ALIAS', 'ALIAS', 0, 1, NULL, NULL, NULL),
-                  (12, 1, 'SKU001-INACTIVE', 'ALIAS', 0, 0, NULL, NULL, NULL),
-                  (20, 2, 'SKU002', 'PRIMARY', 1, 1, NULL, NULL, NULL),
-                  (30, 3, 'SKU003', 'PRIMARY', 1, 1, NULL, NULL, NULL)
+                  (10, 1, 'SKU001', 'PRIMARY', 1, 1, NULL, NULL, 'primary', '2026-01-01 00:00:00'),
+                  (11, 1, 'SKU001-ALIAS', 'ALIAS', 0, 1, NULL, NULL, NULL, '2026-01-02 00:00:00'),
+                  (12, 1, 'SKU001-INACTIVE', 'ALIAS', 0, 0, NULL, NULL, NULL, '2026-01-03 00:00:00'),
+                  (20, 2, 'SKU002', 'PRIMARY', 1, 1, NULL, NULL, NULL, '2026-01-04 00:00:00'),
+                  (30, 3, 'SKU003', 'PRIMARY', 1, 1, NULL, NULL, NULL, '2026-01-05 00:00:00')
                 """
             )
         )
@@ -138,6 +140,24 @@ def test_sku_code_repository_queries_codes() -> None:
         assert primary.item_name == "商品A"
         assert primary.item_enabled is True
         assert primary.remark == "primary"
+    finally:
+        session.close()
+
+
+def test_sku_code_repository_projection_feed_is_paginated() -> None:
+    session = _make_session()
+    try:
+        repo = SkuCodeReadRepository(session)
+
+        rows = repo.list_projection_feed(limit=2, offset=1)
+
+        assert [row.sku_code_id for row in rows] == [11, 12]
+        assert rows[0].item_id == 1
+        assert rows[0].sku_code == "SKU001-ALIAS"
+        assert rows[0].code_type == "ALIAS"
+        assert rows[0].is_primary is False
+        assert rows[0].is_active is True
+        assert rows[0].pms_updated_at is not None
     finally:
         session.close()
 

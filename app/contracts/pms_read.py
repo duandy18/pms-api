@@ -244,6 +244,98 @@ class ReportSearchOut(ReadContractBase):
     item_ids: list[int] = Field(default_factory=list)
 
 
+class _ProjectionFeedPage(ReadContractBase):
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    next_offset: int | None = Field(default=None, ge=0)
+    has_more: bool
+
+
+class PmsProjectionItemFeedRow(ReadContractBase):
+    item_id: int = Field(gt=0)
+
+    sku: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=128)
+    spec: str | None = Field(default=None, max_length=128)
+    enabled: bool
+
+    supplier_id: int | None = None
+    brand: str | None = Field(default=None, max_length=64)
+    category: str | None = Field(default=None, max_length=64)
+
+    expiry_policy: ExpiryPolicy
+    shelf_life_value: int | None = Field(default=None, gt=0)
+    shelf_life_unit: ShelfLifeUnit | None = None
+    lot_source_policy: LotSourcePolicy
+    derivation_allowed: bool
+    uom_governance_enabled: bool
+
+    pms_updated_at: datetime
+
+
+class PmsProjectionUomFeedRow(ReadContractBase):
+    item_uom_id: int = Field(gt=0)
+    item_id: int = Field(gt=0)
+
+    uom: str = Field(min_length=1, max_length=16)
+    display_name: str | None = Field(default=None, max_length=32)
+    uom_name: str = Field(min_length=1, max_length=32)
+
+    ratio_to_base: int = Field(ge=1)
+    net_weight_kg: float | None = Field(default=None, ge=0)
+
+    is_base: bool
+    is_purchase_default: bool
+    is_inbound_default: bool
+    is_outbound_default: bool
+
+    pms_updated_at: datetime
+
+
+class PmsProjectionSkuCodeFeedRow(ReadContractBase):
+    sku_code_id: int = Field(gt=0)
+    item_id: int = Field(gt=0)
+
+    sku_code: str = Field(min_length=1, max_length=128)
+    code_type: PmsExportSkuCodeType
+    is_primary: bool
+    is_active: bool
+
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+
+    pms_updated_at: datetime
+
+
+class PmsProjectionBarcodeFeedRow(ReadContractBase):
+    barcode_id: int = Field(gt=0)
+    item_id: int = Field(gt=0)
+    item_uom_id: int = Field(gt=0)
+
+    barcode: str = Field(min_length=1, max_length=128)
+    symbology: str = Field(min_length=1, max_length=32)
+    active: bool
+    is_primary: bool
+
+    pms_updated_at: datetime
+
+
+class PmsProjectionItemFeedOut(_ProjectionFeedPage):
+    rows: list[PmsProjectionItemFeedRow] = Field(default_factory=list)
+
+
+class PmsProjectionUomFeedOut(_ProjectionFeedPage):
+    rows: list[PmsProjectionUomFeedRow] = Field(default_factory=list)
+
+
+class PmsProjectionSkuCodeFeedOut(_ProjectionFeedPage):
+    rows: list[PmsProjectionSkuCodeFeedRow] = Field(default_factory=list)
+
+
+class PmsProjectionBarcodeFeedOut(_ProjectionFeedPage):
+    rows: list[PmsProjectionBarcodeFeedRow] = Field(default_factory=list)
+
+
 __all__ = [
     "BarcodeProbeError",
     "BarcodeProbeIn",
@@ -265,6 +357,14 @@ __all__ = [
     "PmsExportSkuCodeResolution",
     "PmsExportSkuCodeType",
     "PmsExportUom",
+    "PmsProjectionBarcodeFeedOut",
+    "PmsProjectionBarcodeFeedRow",
+    "PmsProjectionItemFeedOut",
+    "PmsProjectionItemFeedRow",
+    "PmsProjectionSkuCodeFeedOut",
+    "PmsProjectionSkuCodeFeedRow",
+    "PmsProjectionUomFeedOut",
+    "PmsProjectionUomFeedRow",
     "PmsReadError",
     "PmsReadHealthOut",
     "PmsUomDefaultUsage",

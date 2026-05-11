@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.contracts.pms_read import (
     PmsExportSkuCode,
     PmsExportSkuCodeResolution,
+    PmsProjectionSkuCodeFeedRow,
     SkuCodeQueryOut,
 )
 
@@ -48,6 +49,7 @@ item_sku_codes_table = table(
     column("effective_from"),
     column("effective_to"),
     column("remark"),
+    column("updated_at"),
 )
 
 items_table = table(
@@ -74,6 +76,24 @@ class SkuCodeReadRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionSkuCodeFeedRow]:
+        safe_limit = max(1, min(int(limit), 501))
+        safe_offset = max(0, int(offset))
+
+        stmt = (
+            self._projection_feed_stmt()
+            .order_by(item_sku_codes_table.c.id.asc())
+            .offset(safe_offset)
+            .limit(safe_limit)
+        )
+        rows = self.db.execute(stmt).mappings().all()
+        return [self._projection_feed_from_row(row) for row in rows]
 
     def get_sku_code(self, *, sku_code_id: int) -> PmsExportSkuCode | None:
         result = self.query_sku_codes(
@@ -196,6 +216,20 @@ class SkuCodeReadRepository:
         )
 
     @staticmethod
+    def _projection_feed_stmt():
+        return select(
+            item_sku_codes_table.c.id.label("sku_code_id"),
+            item_sku_codes_table.c.item_id.label("item_id"),
+            item_sku_codes_table.c.code.label("sku_code"),
+            item_sku_codes_table.c.code_type.label("code_type"),
+            item_sku_codes_table.c.is_primary.label("is_primary"),
+            item_sku_codes_table.c.is_active.label("is_active"),
+            item_sku_codes_table.c.effective_from.label("effective_from"),
+            item_sku_codes_table.c.effective_to.label("effective_to"),
+            item_sku_codes_table.c.updated_at.label("pms_updated_at"),
+        )
+
+    @staticmethod
     def _base_sku_code_stmt():
         return (
             select(
@@ -218,6 +252,20 @@ class SkuCodeReadRepository:
                     items_table.c.id == item_sku_codes_table.c.item_id,
                 )
             )
+        )
+
+    @staticmethod
+    def _projection_feed_from_row(row) -> PmsProjectionSkuCodeFeedRow:
+        return PmsProjectionSkuCodeFeedRow(
+            sku_code_id=int(row["sku_code_id"]),
+            item_id=int(row["item_id"]),
+            sku_code=str(row["sku_code"]),
+            code_type=str(row["code_type"]),
+            is_primary=bool(row["is_primary"]),
+            is_active=bool(row["is_active"]),
+            effective_from=row["effective_from"],
+            effective_to=row["effective_to"],
+            pms_updated_at=row["pms_updated_at"],
         )
 
     @staticmethod
