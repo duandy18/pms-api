@@ -15,13 +15,19 @@ from app.pms.sku_coding.routers.sku_coding import router as sku_coding_router
 router = APIRouter()
 
 # PMS owner UI/API routes.
+#
+# Important route-order rule:
+# - /items has static/specific paths such as /items/list-rows and /items/aggregate.
+# - items_router also owns generic /items/{id}.
+# - FastAPI/Starlette matches routes in registration order, so specific /items routes
+#   must be registered before the generic item id route.
 router.include_router(item_master_router)
-router.include_router(items_router)
 router.include_router(item_list_router)
 router.include_router(item_aggregate_router)
+router.include_router(item_sku_codes_router)
+router.include_router(items_router)
 router.include_router(item_uoms_router)
 router.include_router(item_barcodes_router)
-router.include_router(item_sku_codes_router)
 router.include_router(sku_coding_router)
 
 __all__ = ["router"]
