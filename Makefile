@@ -7,9 +7,9 @@ PIP   := $(VENV)/bin/pip
 PYTEST:= $(VENV)/bin/pytest
 ALEMB := $(PY) -m alembic
 
-DEV_DB_DSN := postgresql+psycopg://wms:wms@127.0.0.1:5433/wms
+DEV_DB_DSN := postgresql+psycopg://wms:wms@127.0.0.1:5433/pms
 
-.PHONY: venv install dev dev-db test lint routes db-smoke upgrade-dev alembic-check alembic-current alembic-history
+.PHONY: venv install dev dev-db test lint routes db-smoke upgrade-dev alembic-check alembic-current alembic-history dev-ensure-admin
 
 venv:
 >python3 -m venv $(VENV)
@@ -47,3 +47,6 @@ alembic-current:
 
 alembic-history:
 >PMS_DATABASE_URL="$(DEV_DB_DSN)" PYTHONPATH=. $(ALEMB) history
+
+dev-ensure-admin:
+>PMS_DATABASE_URL="$(DEV_DB_DSN)" PYTHONPATH=. $(PY) scripts/ensure_admin.py
