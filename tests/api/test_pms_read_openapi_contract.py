@@ -33,6 +33,10 @@ def test_pms_read_v1_paths_and_methods_are_stable() -> None:
 
     expected = {
         "/pms/read/v1/health": {"get"},
+        "/pms/read/v1/projection-feed/items": {"get"},
+        "/pms/read/v1/projection-feed/uoms": {"get"},
+        "/pms/read/v1/projection-feed/sku-codes": {"get"},
+        "/pms/read/v1/projection-feed/barcodes": {"get"},
         "/pms/read/v1/items/basic": {"get"},
         "/pms/read/v1/items/basic/{item_id}": {"get"},
         "/pms/read/v1/items/basic/batch": {"post"},
@@ -70,6 +74,19 @@ def test_pms_read_v1_request_response_models_are_stable() -> None:
     assert _response_ref(schema, "/pms/read/v1/health", "get") == (
         "#/components/schemas/PmsReadHealthOut"
     )
+    assert _response_ref(schema, "/pms/read/v1/projection-feed/items", "get") == (
+        "#/components/schemas/PmsProjectionItemFeedOut"
+    )
+    assert _response_ref(schema, "/pms/read/v1/projection-feed/uoms", "get") == (
+        "#/components/schemas/PmsProjectionUomFeedOut"
+    )
+    assert _response_ref(schema, "/pms/read/v1/projection-feed/sku-codes", "get") == (
+        "#/components/schemas/PmsProjectionSkuCodeFeedOut"
+    )
+    assert _response_ref(schema, "/pms/read/v1/projection-feed/barcodes", "get") == (
+        "#/components/schemas/PmsProjectionBarcodeFeedOut"
+    )
+
     assert _array_item_ref(schema, "/pms/read/v1/items/basic", "get") == (
         "#/components/schemas/ItemBasic"
     )

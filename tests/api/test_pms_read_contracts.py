@@ -11,6 +11,8 @@ from app.contracts.pms_read import (
     ItemBasicBatchOut,
     ItemPolicy,
     PmsExportSkuCodeResolution,
+    PmsProjectionItemFeedOut,
+    PmsProjectionItemFeedRow,
 )
 from app.main import app
 from app.routers.pms_read_v1 import get_barcode_reader, get_item_basic_reader
@@ -94,6 +96,33 @@ def test_contract_models_validate_current_read_shapes() -> None:
     )
     assert resolution.item_uom_id == 20
 
+    feed = PmsProjectionItemFeedOut(
+        rows=[
+            PmsProjectionItemFeedRow(
+                item_id=1,
+                sku="SKU001",
+                name="商品A",
+                spec=None,
+                enabled=True,
+                supplier_id=None,
+                brand=None,
+                category=None,
+                expiry_policy="NONE",
+                shelf_life_value=None,
+                shelf_life_unit=None,
+                lot_source_policy="INTERNAL_ONLY",
+                derivation_allowed=True,
+                uom_governance_enabled=False,
+                pms_updated_at="2026-01-01T00:00:00Z",
+            )
+        ],
+        limit=500,
+        offset=0,
+        next_offset=None,
+        has_more=False,
+    )
+    assert feed.rows[0].item_id == 1
+
 
 def test_read_v1_routes_are_mounted() -> None:
     paths = {
@@ -103,6 +132,10 @@ def test_read_v1_routes_are_mounted() -> None:
     }
 
     assert "/pms/read/v1/health" in paths
+    assert "/pms/read/v1/projection-feed/items" in paths
+    assert "/pms/read/v1/projection-feed/uoms" in paths
+    assert "/pms/read/v1/projection-feed/sku-codes" in paths
+    assert "/pms/read/v1/projection-feed/barcodes" in paths
     assert "/pms/read/v1/items/basic/batch" in paths
     assert "/pms/read/v1/items/policies/batch" in paths
     assert "/pms/read/v1/items/report-search" in paths

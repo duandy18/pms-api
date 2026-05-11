@@ -70,7 +70,8 @@ def _make_session() -> Session:
                   barcode TEXT NOT NULL,
                   symbology TEXT NOT NULL,
                   active BOOLEAN NOT NULL,
-                  is_primary BOOLEAN NOT NULL
+                  is_primary BOOLEAN NOT NULL,
+                  updated_at TIMESTAMP NOT NULL
                 )
                 """
             )
@@ -120,13 +121,14 @@ def _make_session() -> Session:
                   barcode,
                   symbology,
                   active,
-                  is_primary
+                  is_primary,
+                  updated_at
                 )
                 VALUES
-                  (100, 1, 10, 'BC-OLD', 'CUSTOM', 0, 0),
-                  (101, 1, 10, 'BC-PRIMARY', 'EAN13', 1, 1),
-                  (102, 1, 11, 'BC-SECONDARY', 'CUSTOM', 1, 0),
-                  (200, 2, 20, 'BC-DISABLED-ITEM', 'CUSTOM', 1, 1)
+                  (100, 1, 10, 'BC-OLD', 'CUSTOM', 0, 0, '2026-01-01 00:00:00'),
+                  (101, 1, 10, 'BC-PRIMARY', 'EAN13', 1, 1, '2026-01-02 00:00:00'),
+                  (102, 1, 11, 'BC-SECONDARY', 'CUSTOM', 1, 0, '2026-01-03 00:00:00'),
+                  (200, 2, 20, 'BC-DISABLED-ITEM', 'CUSTOM', 1, 1, '2026-01-04 00:00:00')
                 """
             )
         )
@@ -159,6 +161,25 @@ def test_barcode_repository_queries_active_primary_barcodes() -> None:
         assert row.display_name == "件"
         assert row.uom_name == "件"
         assert row.ratio_to_base == 1
+    finally:
+        session.close()
+
+
+def test_barcode_repository_projection_feed_is_paginated() -> None:
+    session = _make_session()
+    try:
+        repo = BarcodeReadRepository(session)
+
+        rows = repo.list_projection_feed(limit=2, offset=1)
+
+        assert [row.barcode_id for row in rows] == [101, 102]
+        assert rows[0].item_id == 1
+        assert rows[0].item_uom_id == 10
+        assert rows[0].barcode == "BC-PRIMARY"
+        assert rows[0].symbology == "EAN13"
+        assert rows[0].active is True
+        assert rows[0].is_primary is True
+        assert rows[0].pms_updated_at is not None
     finally:
         session.close()
 

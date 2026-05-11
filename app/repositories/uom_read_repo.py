@@ -6,7 +6,12 @@ from collections.abc import Iterable
 from sqlalchemy import column, or_, select, table
 from sqlalchemy.orm import Session
 
-from app.contracts.pms_read import PmsExportUom, UomDefaultsBatchOut, UomQueryOut
+from app.contracts.pms_read import (
+    PmsExportUom,
+    PmsProjectionUomFeedRow,
+    UomDefaultsBatchOut,
+    UomQueryOut,
+)
 
 
 def _clean_ids(values: Iterable[int]) -> list[int]:
@@ -44,6 +49,7 @@ item_uoms_table = table(
     column("is_purchase_default"),
     column("is_inbound_default"),
     column("is_outbound_default"),
+    column("updated_at"),
 )
 
 
@@ -102,6 +108,24 @@ class UomReadRepository:
             errors=[],
         )
 
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionUomFeedRow]:
+        safe_limit = max(1, min(int(limit), 501))
+        safe_offset = max(0, int(offset))
+
+        stmt = (
+            self._projection_feed_stmt()
+            .order_by(item_uoms_table.c.id.asc())
+            .offset(safe_offset)
+            .limit(safe_limit)
+        )
+        rows = self.db.execute(stmt).mappings().all()
+        return [self._projection_feed_from_row(row) for row in rows]
+
     def get_default_or_base_batch(
         self,
         *,
@@ -150,6 +174,22 @@ class UomReadRepository:
         )
 
     @staticmethod
+    def _projection_feed_stmt():
+        return select(
+            item_uoms_table.c.id.label("item_uom_id"),
+            item_uoms_table.c.item_id.label("item_id"),
+            item_uoms_table.c.uom.label("uom"),
+            item_uoms_table.c.display_name.label("display_name"),
+            item_uoms_table.c.ratio_to_base.label("ratio_to_base"),
+            item_uoms_table.c.net_weight_kg.label("net_weight_kg"),
+            item_uoms_table.c.is_base.label("is_base"),
+            item_uoms_table.c.is_purchase_default.label("is_purchase_default"),
+            item_uoms_table.c.is_inbound_default.label("is_inbound_default"),
+            item_uoms_table.c.is_outbound_default.label("is_outbound_default"),
+            item_uoms_table.c.updated_at.label("pms_updated_at"),
+        )
+
+    @staticmethod
     def _base_stmt():
         return select(
             item_uoms_table.c.id.label("id"),
@@ -162,6 +202,25 @@ class UomReadRepository:
             item_uoms_table.c.is_purchase_default.label("is_purchase_default"),
             item_uoms_table.c.is_inbound_default.label("is_inbound_default"),
             item_uoms_table.c.is_outbound_default.label("is_outbound_default"),
+        )
+
+    @staticmethod
+    def _projection_feed_from_row(row) -> PmsProjectionUomFeedRow:
+        net_weight_kg = row["net_weight_kg"]
+
+        return PmsProjectionUomFeedRow(
+            item_uom_id=int(row["item_uom_id"]),
+            item_id=int(row["item_id"]),
+            uom=str(row["uom"]),
+            display_name=_strip_or_none(row["display_name"]),
+            uom_name=_uom_name(row["uom"], row["display_name"]),
+            ratio_to_base=int(row["ratio_to_base"]),
+            net_weight_kg=float(net_weight_kg) if net_weight_kg is not None else None,
+            is_base=bool(row["is_base"]),
+            is_purchase_default=bool(row["is_purchase_default"]),
+            is_inbound_default=bool(row["is_inbound_default"]),
+            is_outbound_default=bool(row["is_outbound_default"]),
+            pms_updated_at=row["pms_updated_at"],
         )
 
     @staticmethod

@@ -42,7 +42,14 @@ def _make_session() -> Session:
                   enabled BOOLEAN NOT NULL,
                   supplier_id INTEGER,
                   brand_id INTEGER,
-                  category_id INTEGER
+                  category_id INTEGER,
+                  expiry_policy VARCHAR(32) NOT NULL,
+                  shelf_life_value INTEGER,
+                  shelf_life_unit VARCHAR(16),
+                  lot_source_policy VARCHAR(32) NOT NULL,
+                  derivation_allowed BOOLEAN NOT NULL,
+                  uom_governance_enabled BOOLEAN NOT NULL,
+                  updated_at TIMESTAMP NOT NULL
                 )
                 """
             )
@@ -74,11 +81,50 @@ def _make_session() -> Session:
                   enabled,
                   supplier_id,
                   brand_id,
-                  category_id
+                  category_id,
+                  expiry_policy,
+                  shelf_life_value,
+                  shelf_life_unit,
+                  lot_source_policy,
+                  derivation_allowed,
+                  uom_governance_enabled,
+                  updated_at
                 )
                 VALUES
-                  (1, 'SKU001', '商品A', '规格A', 1, 100, 10, 20),
-                  (2, 'SKU002', '商品B', NULL, 0, NULL, NULL, NULL)
+                  (
+                    1,
+                    'SKU001',
+                    '商品A',
+                    '规格A',
+                    1,
+                    100,
+                    10,
+                    20,
+                    'NONE',
+                    NULL,
+                    NULL,
+                    'INTERNAL_ONLY',
+                    1,
+                    0,
+                    '2026-01-01 00:00:00'
+                  ),
+                  (
+                    2,
+                    'SKU002',
+                    '商品B',
+                    NULL,
+                    0,
+                    NULL,
+                    NULL,
+                    NULL,
+                    'REQUIRED',
+                    12,
+                    'MONTH',
+                    'SUPPLIER_ONLY',
+                    0,
+                    1,
+                    '2026-01-02 00:00:00'
+                  )
                 """
             )
         )
@@ -114,6 +160,30 @@ def test_item_basic_repository_reads_brand_and_category_names() -> None:
         assert disabled.enabled is False
         assert disabled.brand is None
         assert disabled.category is None
+    finally:
+        session.close()
+
+
+def test_item_basic_repository_projection_feed_is_paginated() -> None:
+    session = _make_session()
+    try:
+        repo = ItemBasicReadRepository(session)
+
+        first = repo.list_projection_feed(limit=1, offset=0)
+        second = repo.list_projection_feed(limit=1, offset=1)
+
+        assert [row.item_id for row in first] == [1]
+        assert [row.item_id for row in second] == [2]
+
+        row = first[0]
+        assert row.sku == "SKU001"
+        assert row.brand == "品牌A"
+        assert row.category == "分类A"
+        assert row.expiry_policy == "NONE"
+        assert row.lot_source_policy == "INTERNAL_ONLY"
+        assert row.derivation_allowed is True
+        assert row.uom_governance_enabled is False
+        assert row.pms_updated_at is not None
     finally:
         session.close()
 

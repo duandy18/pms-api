@@ -13,6 +13,7 @@ from app.contracts.pms_read import (
     BarcodeQueryOut,
     ItemBasic,
     PmsExportBarcode,
+    PmsProjectionBarcodeFeedRow,
 )
 
 
@@ -76,6 +77,7 @@ barcodes_table = table(
     column("symbology"),
     column("active"),
     column("is_primary"),
+    column("updated_at"),
 )
 
 
@@ -83,6 +85,24 @@ class BarcodeReadRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionBarcodeFeedRow]:
+        safe_limit = max(1, min(int(limit), 501))
+        safe_offset = max(0, int(offset))
+
+        stmt = (
+            self._projection_feed_stmt()
+            .order_by(barcodes_table.c.id.asc())
+            .offset(safe_offset)
+            .limit(safe_limit)
+        )
+        rows = self.db.execute(stmt).mappings().all()
+        return [self._projection_feed_from_row(row) for row in rows]
 
     def get_barcode(self, *, barcode_id: int) -> PmsExportBarcode | None:
         stmt = (
@@ -191,6 +211,19 @@ class BarcodeReadRepository:
         )
 
     @staticmethod
+    def _projection_feed_stmt():
+        return select(
+            barcodes_table.c.id.label("barcode_id"),
+            barcodes_table.c.item_id.label("item_id"),
+            barcodes_table.c.item_uom_id.label("item_uom_id"),
+            barcodes_table.c.barcode.label("barcode"),
+            barcodes_table.c.symbology.label("symbology"),
+            barcodes_table.c.active.label("active"),
+            barcodes_table.c.is_primary.label("is_primary"),
+            barcodes_table.c.updated_at.label("pms_updated_at"),
+        )
+
+    @staticmethod
     def _base_barcode_stmt():
         return (
             select(
@@ -225,6 +258,19 @@ class BarcodeReadRepository:
                     categories_table.c.id == items_table.c.category_id,
                 )
             )
+        )
+
+    @staticmethod
+    def _projection_feed_from_row(row) -> PmsProjectionBarcodeFeedRow:
+        return PmsProjectionBarcodeFeedRow(
+            barcode_id=int(row["barcode_id"]),
+            item_id=int(row["item_id"]),
+            item_uom_id=int(row["item_uom_id"]),
+            barcode=str(row["barcode"]),
+            symbology=str(row["symbology"]),
+            active=bool(row["active"]),
+            is_primary=bool(row["is_primary"]),
+            pms_updated_at=row["pms_updated_at"],
         )
 
     @staticmethod

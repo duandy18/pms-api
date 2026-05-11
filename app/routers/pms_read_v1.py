@@ -21,6 +21,14 @@ from app.contracts.pms_read import (
     PmsExportSkuCode,
     PmsExportSkuCodeResolution,
     PmsExportUom,
+    PmsProjectionBarcodeFeedOut,
+    PmsProjectionBarcodeFeedRow,
+    PmsProjectionItemFeedOut,
+    PmsProjectionItemFeedRow,
+    PmsProjectionSkuCodeFeedOut,
+    PmsProjectionSkuCodeFeedRow,
+    PmsProjectionUomFeedOut,
+    PmsProjectionUomFeedRow,
     PmsReadHealthOut,
     ReportSearchOut,
     SkuCodeQueryIn,
@@ -55,6 +63,14 @@ class ItemBasicReader(Protocol):
         ...
 
     def get_item_basic(self, *, item_id: int) -> ItemBasic | None:
+        ...
+
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionItemFeedRow]:
         ...
 
     def get_item_basic_batch(
@@ -111,6 +127,14 @@ class UomReader(Protocol):
     ) -> UomQueryOut:
         ...
 
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionUomFeedRow]:
+        ...
+
     def get_default_or_base_batch(
         self,
         *,
@@ -122,6 +146,14 @@ class UomReader(Protocol):
 
 class BarcodeReader(Protocol):
     def get_barcode(self, *, barcode_id: int) -> PmsExportBarcode | None:
+        ...
+
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionBarcodeFeedRow]:
         ...
 
     def query_barcodes(
@@ -141,6 +173,14 @@ class BarcodeReader(Protocol):
 
 class SkuCodeReader(Protocol):
     def get_sku_code(self, *, sku_code_id: int) -> PmsExportSkuCode | None:
+        ...
+
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionSkuCodeFeedRow]:
         ...
 
     def query_sku_codes(
@@ -181,6 +221,10 @@ def _clean_ids(values: list[int]) -> list[int]:
     return sorted({int(value) for value in values if int(value) > 0})
 
 
+def _next_offset(*, offset: int, limit: int, fetched: int) -> int | None:
+    return int(offset) + int(limit) if int(fetched) > int(limit) else None
+
+
 def get_item_basic_reader(db: Session = Depends(get_db)) -> ItemBasicReader:
     return ItemBasicReadRepository(db)
 
@@ -208,6 +252,70 @@ def get_sku_code_reader(db: Session = Depends(get_db)) -> SkuCodeReader:
 @router.get("/health", response_model=PmsReadHealthOut)
 async def read_v1_health() -> PmsReadHealthOut:
     return PmsReadHealthOut(status="ok", surface="pms-read-v1")
+
+
+@router.get("/projection-feed/items", response_model=PmsProjectionItemFeedOut)
+async def projection_feed_items(
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    reader: ItemBasicReader = Depends(get_item_basic_reader),
+) -> PmsProjectionItemFeedOut:
+    rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
+    return PmsProjectionItemFeedOut(
+        rows=rows[:limit],
+        limit=int(limit),
+        offset=int(offset),
+        next_offset=_next_offset(offset=int(offset), limit=int(limit), fetched=len(rows)),
+        has_more=len(rows) > int(limit),
+    )
+
+
+@router.get("/projection-feed/uoms", response_model=PmsProjectionUomFeedOut)
+async def projection_feed_uoms(
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    reader: UomReader = Depends(get_uom_reader),
+) -> PmsProjectionUomFeedOut:
+    rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
+    return PmsProjectionUomFeedOut(
+        rows=rows[:limit],
+        limit=int(limit),
+        offset=int(offset),
+        next_offset=_next_offset(offset=int(offset), limit=int(limit), fetched=len(rows)),
+        has_more=len(rows) > int(limit),
+    )
+
+
+@router.get("/projection-feed/sku-codes", response_model=PmsProjectionSkuCodeFeedOut)
+async def projection_feed_sku_codes(
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    reader: SkuCodeReader = Depends(get_sku_code_reader),
+) -> PmsProjectionSkuCodeFeedOut:
+    rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
+    return PmsProjectionSkuCodeFeedOut(
+        rows=rows[:limit],
+        limit=int(limit),
+        offset=int(offset),
+        next_offset=_next_offset(offset=int(offset), limit=int(limit), fetched=len(rows)),
+        has_more=len(rows) > int(limit),
+    )
+
+
+@router.get("/projection-feed/barcodes", response_model=PmsProjectionBarcodeFeedOut)
+async def projection_feed_barcodes(
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    reader: BarcodeReader = Depends(get_barcode_reader),
+) -> PmsProjectionBarcodeFeedOut:
+    rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
+    return PmsProjectionBarcodeFeedOut(
+        rows=rows[:limit],
+        limit=int(limit),
+        offset=int(offset),
+        next_offset=_next_offset(offset=int(offset), limit=int(limit), fetched=len(rows)),
+        has_more=len(rows) > int(limit),
+    )
 
 
 @router.get("/items/basic", response_model=list[ItemBasic])

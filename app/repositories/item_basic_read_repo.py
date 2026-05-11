@@ -6,7 +6,11 @@ from collections.abc import Iterable
 from sqlalchemy import column, or_, select, table
 from sqlalchemy.orm import Session
 
-from app.contracts.pms_read import ItemBasic, ItemBasicBatchOut
+from app.contracts.pms_read import (
+    ItemBasic,
+    ItemBasicBatchOut,
+    PmsProjectionItemFeedRow,
+)
 
 
 def _clean_ids(values: Iterable[int]) -> list[int]:
@@ -30,6 +34,13 @@ items_table = table(
     column("supplier_id"),
     column("brand_id"),
     column("category_id"),
+    column("expiry_policy"),
+    column("shelf_life_value"),
+    column("shelf_life_unit"),
+    column("lot_source_policy"),
+    column("derivation_allowed"),
+    column("uom_governance_enabled"),
+    column("updated_at"),
 )
 
 brands_table = table(
@@ -77,6 +88,24 @@ class ItemBasicReadRepository:
         rows = self.db.execute(stmt).mappings().all()
         return [self._item_basic_from_row(row) for row in rows]
 
+    def list_projection_feed(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[PmsProjectionItemFeedRow]:
+        safe_limit = max(1, min(int(limit), 501))
+        safe_offset = max(0, int(offset))
+
+        stmt = (
+            self._projection_feed_stmt()
+            .order_by(items_table.c.id.asc())
+            .offset(safe_offset)
+            .limit(safe_limit)
+        )
+        rows = self.db.execute(stmt).mappings().all()
+        return [self._projection_feed_from_row(row) for row in rows]
+
     def get_item_basic(self, *, item_id: int) -> ItemBasic | None:
         result = self.get_item_basic_batch(item_ids=[int(item_id)], enabled_only=False)
         return result.items_by_id.get(int(item_id))
@@ -122,6 +151,34 @@ class ItemBasicReadRepository:
         )
 
     @staticmethod
+    def _projection_feed_stmt():
+        return select(
+            items_table.c.id.label("item_id"),
+            items_table.c.sku.label("sku"),
+            items_table.c.name.label("name"),
+            items_table.c.spec.label("spec"),
+            items_table.c.enabled.label("enabled"),
+            items_table.c.supplier_id.label("supplier_id"),
+            brands_table.c.name_cn.label("brand"),
+            categories_table.c.category_name.label("category"),
+            items_table.c.expiry_policy.label("expiry_policy"),
+            items_table.c.shelf_life_value.label("shelf_life_value"),
+            items_table.c.shelf_life_unit.label("shelf_life_unit"),
+            items_table.c.lot_source_policy.label("lot_source_policy"),
+            items_table.c.derivation_allowed.label("derivation_allowed"),
+            items_table.c.uom_governance_enabled.label("uom_governance_enabled"),
+            items_table.c.updated_at.label("pms_updated_at"),
+        ).select_from(
+            items_table.outerjoin(
+                brands_table,
+                brands_table.c.id == items_table.c.brand_id,
+            ).outerjoin(
+                categories_table,
+                categories_table.c.id == items_table.c.category_id,
+            )
+        )
+
+    @staticmethod
     def _base_stmt():
         return select(
             items_table.c.id.label("id"),
@@ -140,6 +197,32 @@ class ItemBasicReadRepository:
                 categories_table,
                 categories_table.c.id == items_table.c.category_id,
             )
+        )
+
+    @staticmethod
+    def _projection_feed_from_row(row) -> PmsProjectionItemFeedRow:
+        return PmsProjectionItemFeedRow(
+            item_id=int(row["item_id"]),
+            sku=str(row["sku"]),
+            name=str(row["name"]),
+            spec=_strip_or_none(row["spec"]),
+            enabled=bool(row["enabled"]),
+            supplier_id=(
+                int(row["supplier_id"]) if row["supplier_id"] is not None else None
+            ),
+            brand=_strip_or_none(row["brand"]),
+            category=_strip_or_none(row["category"]),
+            expiry_policy=str(row["expiry_policy"]),
+            shelf_life_value=(
+                int(row["shelf_life_value"])
+                if row["shelf_life_value"] is not None
+                else None
+            ),
+            shelf_life_unit=_strip_or_none(row["shelf_life_unit"]),
+            lot_source_policy=str(row["lot_source_policy"]),
+            derivation_allowed=bool(row["derivation_allowed"]),
+            uom_governance_enabled=bool(row["uom_governance_enabled"]),
+            pms_updated_at=row["pms_updated_at"],
         )
 
     @staticmethod
