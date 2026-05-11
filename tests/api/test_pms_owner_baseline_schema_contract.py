@@ -8,7 +8,7 @@ from app.db.metadata import metadata
 
 ROOT = Path(__file__).resolve().parents[2]
 
-EXPECTED_PMS_TABLES = {
+PMS_OWNER_BASELINE_TABLES = {
     "items",
     "item_uoms",
     "item_barcodes",
@@ -22,20 +22,29 @@ EXPECTED_PMS_TABLES = {
     "sku_code_template_segments",
 }
 
+EXPECTED_CURRENT_PMS_TABLES = PMS_OWNER_BASELINE_TABLES | {
+    "users",
+    "permissions",
+    "user_permissions",
+    "page_registry",
+    "page_route_prefixes",
+    "suppliers",
+    "supplier_contacts",
+}
 
-def test_pms_owner_metadata_contains_owner_tables_only() -> None:
+
+def test_pms_owner_metadata_contains_current_pms_owned_tables() -> None:
     tables = set(metadata.tables)
 
-    assert EXPECTED_PMS_TABLES <= tables
-    assert "suppliers" not in tables
+    assert EXPECTED_CURRENT_PMS_TABLES <= tables
     assert set(Base.metadata.tables) == tables
 
 
-def test_pms_owner_baseline_migration_exists_and_excludes_suppliers() -> None:
+def test_pms_owner_baseline_migration_remains_pre_supplier_split() -> None:
     migration = ROOT / "alembic/versions/0001_pms_owner_baseline_schema.py"
     text = migration.read_text(encoding="utf-8")
 
-    for table_name in EXPECTED_PMS_TABLES:
+    for table_name in PMS_OWNER_BASELINE_TABLES:
         assert f'"{table_name}"' in text
 
     assert '"suppliers"' not in text
@@ -43,7 +52,17 @@ def test_pms_owner_baseline_migration_exists_and_excludes_suppliers() -> None:
     assert 'sa.Column("supplier_id", sa.Integer(), nullable=True)' in text
 
 
-def test_item_supplier_id_is_scalar_not_foreign_key() -> None:
+def test_pms_suppliers_owner_migration_adds_supplier_tables_and_page_registry() -> None:
+    migration = ROOT / "alembic/versions/0003_pms_suppliers_owner.py"
+    text = migration.read_text(encoding="utf-8")
+
+    assert '"suppliers"' in text
+    assert '"supplier_contacts"' in text
+    assert "pms.suppliers" in text
+    assert "/pms/suppliers" in text
+
+
+def test_item_supplier_id_is_scalar_not_foreign_key_during_stability_window() -> None:
     from app.pms.items.models.item import Item
 
     col = Item.__table__.c.supplier_id

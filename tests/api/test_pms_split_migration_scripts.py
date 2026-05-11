@@ -27,7 +27,7 @@ def test_pms_split_export_import_script_exists() -> None:
     assert script.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash")
 
 
-def test_pms_split_export_import_script_covers_all_pms_tables() -> None:
+def test_pms_split_export_import_script_covers_all_initial_pms_tables() -> None:
     text = (ROOT / "scripts/migration/pms_split_export_import.sh").read_text(
         encoding="utf-8"
     )
@@ -36,7 +36,7 @@ def test_pms_split_export_import_script_covers_all_pms_tables() -> None:
         assert table_name in text
 
 
-def test_pms_split_export_import_script_excludes_suppliers_table() -> None:
+def test_pms_split_export_import_script_keeps_supplier_migration_separate() -> None:
     text = (ROOT / "scripts/migration/pms_split_export_import.sh").read_text(
         encoding="utf-8"
     )
@@ -44,6 +44,19 @@ def test_pms_split_export_import_script_excludes_suppliers_table() -> None:
     assert "suppliers.csv" not in text
     assert "\\copy suppliers" not in text
     assert "fk_items_supplier" not in text
+
+
+def test_pms_supplier_export_import_script_exists() -> None:
+    text = (ROOT / "scripts/migration/pms_suppliers_export_import.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PMS_SUPPLIER_SOURCE_PSQL_DSN" in text
+    assert "PMS_SUPPLIER_TARGET_PSQL_DSN" in text
+    assert "suppliers.csv" in text
+    assert "supplier_contacts.csv" in text
+    assert "\\copy suppliers" in text
+    assert "\\copy supplier_contacts" in text
 
 
 def test_pms_split_export_import_script_has_safety_guards() -> None:

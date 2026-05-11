@@ -57,6 +57,8 @@ def test_pms_read_v1_paths_and_methods_are_stable() -> None:
         "/pms/read/v1/sku-codes/{sku_code_id}": {"get"},
         "/pms/read/v1/items/{item_id}/sku-codes": {"get"},
         "/pms/read/v1/sku-codes/query": {"post"},
+        "/pms/read/v1/suppliers": {"get"},
+        "/pms/read/v1/suppliers/{supplier_id}": {"get"},
     }
 
     actual = {

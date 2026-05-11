@@ -11,6 +11,8 @@ from app.pms.items.routers.item_sku_codes import router as item_sku_codes_router
 from app.pms.items.routers.item_uoms import router as item_uoms_router
 from app.pms.items.routers.items import router as items_router
 from app.pms.sku_coding.routers.sku_coding import router as sku_coding_router
+from app.pms.suppliers.routers.supplier_contacts import router as supplier_contacts_router
+from app.pms.suppliers.routers.suppliers import router as suppliers_router
 
 router = APIRouter()
 
@@ -29,5 +31,7 @@ router.include_router(items_router)
 router.include_router(item_uoms_router)
 router.include_router(item_barcodes_router)
 router.include_router(sku_coding_router)
+router.include_router(suppliers_router)
+router.include_router(supplier_contacts_router)
 
 __all__ = ["router"]

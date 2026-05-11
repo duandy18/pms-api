@@ -1,4 +1,4 @@
-# tests/api/test_pms_auth_navigation_routes.py
+# tests/api/test_pms_suppliers_owner_contract.py
 from __future__ import annotations
 
 from app.db.metadata import metadata
@@ -16,34 +16,14 @@ def _method_paths() -> set[tuple[str, str]]:
     return pairs
 
 
-def test_user_auth_navigation_routes_are_mounted() -> None:
-    pairs = _method_paths()
+def test_supplier_tables_are_owned_by_pms_metadata() -> None:
+    tables = set(metadata.tables)
 
-    assert ("POST", "/users/login") in pairs
-    assert ("GET", "/users/me") in pairs
-    assert ("GET", "/users/me/navigation") in pairs
-
-
-def test_auth_navigation_tables_are_registered_in_metadata() -> None:
-    assert {
-        "users",
-        "permissions",
-        "user_permissions",
-        "page_registry",
-        "page_route_prefixes",
-    }.issubset(set(metadata.tables))
+    assert "suppliers" in tables
+    assert "supplier_contacts" in tables
 
 
-def test_pms_owner_routes_still_mounted() -> None:
-    pairs = _method_paths()
-
-    assert ("GET", "/items") in pairs
-    assert ("GET", "/items/list-rows") in pairs
-    assert ("GET", "/pms/brands") in pairs
-    assert ("POST", "/pms/sku-coding/generate") in pairs
-
-
-def test_pms_supplier_routes_are_mounted() -> None:
+def test_pms_supplier_owner_and_read_routes_are_registered() -> None:
     pairs = _method_paths()
 
     assert ("GET", "/pms/suppliers") in pairs
@@ -54,3 +34,11 @@ def test_pms_supplier_routes_are_mounted() -> None:
     assert ("DELETE", "/pms/supplier-contacts/{contact_id}") in pairs
     assert ("GET", "/pms/read/v1/suppliers") in pairs
     assert ("GET", "/pms/read/v1/suppliers/{supplier_id}") in pairs
+
+
+def test_no_legacy_partners_supplier_routes_are_mounted_in_pms_api() -> None:
+    paths = {path for _, path in _method_paths()}
+
+    assert "/partners/suppliers" not in paths
+    assert "/partners/export/suppliers" not in paths
+    assert "/partners/supplier-contacts/{contact_id}" not in paths
