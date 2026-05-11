@@ -45,7 +45,7 @@ class ItemUOM(Base):
 
     item_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("items.id", name="fk_item_uoms_item", ondelete="RESTRICT"),
+        ForeignKey("items.id", name="item_uoms_item_id_fkey", ondelete="RESTRICT"),
         nullable=False,
     )
 
