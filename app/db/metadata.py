@@ -8,15 +8,17 @@ from app.db.base import Base
 
 def load_metadata() -> MetaData:
     """
-    Load PMS owner SQLAlchemy metadata for Alembic.
+    Load PMS API SQLAlchemy metadata for Alembic.
 
     Boundary:
-    - pms-api owns PMS tables only.
+    - pms-api owns PMS owner tables.
+    - pms-api also owns its own local auth/navigation runtime tables.
     - suppliers remains outside PMS; items.supplier_id is a scalar reference.
     - do not import WMS/Procurement/OMS models here.
     """
     import app.pms.items.models  # noqa: F401
     import app.pms.sku_coding.models.sku_coding  # noqa: F401
+    import app.user.models  # noqa: F401
 
     return Base.metadata
 
