@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -44,7 +45,7 @@ class ItemBarcode(Base):
 
     item_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("items.id", ondelete="CASCADE"),
+        ForeignKey("items.id", name="item_barcodes_item_id_fkey", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -98,6 +99,7 @@ class ItemBarcode(Base):
             ["item_uoms.id", "item_uoms.item_id"],
             name="fk_item_barcodes_item_uom_pair",
         ),
+        sa.UniqueConstraint("barcode", name="uq_item_barcodes_barcode"),
         Index(
             "uq_item_barcodes_primary",
             "item_id",

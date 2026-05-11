@@ -47,10 +47,26 @@ class SkuCodeTemplateSegment(Base):
     __tablename__ = "sku_code_template_segments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    template_id: Mapped[int] = mapped_column(Integer, ForeignKey("sku_code_templates.id", ondelete="CASCADE"), nullable=False)
+    template_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey(
+            "sku_code_templates.id",
+            name="sku_code_template_segments_template_id_fkey",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
     segment_key: Mapped[str] = mapped_column(String(32), nullable=False)
     source_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    attribute_def_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("item_attribute_defs.id", ondelete="RESTRICT"), nullable=True)
+    attribute_def_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(
+            "item_attribute_defs.id",
+            name="fk_sku_code_template_segments_attribute_def",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+    )
     is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     is_multi_select: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))

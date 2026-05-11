@@ -12,13 +12,11 @@ from app.db.base import Base
 from app.pms.items.models.item_master import ItemAttributeValue, PmsBrand, PmsBusinessCategory  # noqa: F401
 from app.pms.items.models.item_sku_code import ItemSkuCode  # noqa: F401
 from app.pms.items.models.item_uom import ItemUOM  # noqa: F401
-from app.partners.suppliers.models.supplier import Supplier  # noqa: F401
 
 if TYPE_CHECKING:
     from app.pms.items.models.item_master import ItemAttributeValue, PmsBrand, PmsBusinessCategory
     from app.pms.items.models.item_sku_code import ItemSkuCode
     from app.pms.items.models.item_uom import ItemUOM
-    from app.partners.suppliers.models.supplier import Supplier
 
 
 class LotSourcePolicy(str, enum.Enum):
@@ -112,14 +110,14 @@ class Item(Base):
     shelf_life_value: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     shelf_life_unit: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
 
+    # Cross-domain supplier identity is kept as a scalar during PMS split.
+    # Supplier master data is not owned by pms-api, so no DB FK is declared here.
     supplier_id: Mapped[Optional[int]] = mapped_column(
         Integer,
-        ForeignKey("suppliers.id", name="fk_items_supplier", ondelete="RESTRICT"),
         nullable=True,
         index=True,
     )
 
-    supplier: Mapped[Optional["Supplier"]] = relationship("Supplier", lazy="joined")
     brand_ref: Mapped[Optional["PmsBrand"]] = relationship("PmsBrand", back_populates="items", lazy="joined")
     category_ref: Mapped[Optional["PmsBusinessCategory"]] = relationship(
         "PmsBusinessCategory",
@@ -189,7 +187,9 @@ class Item(Base):
 
     @property
     def supplier_name(self) -> Optional[str]:
-        return self.supplier.name if self.supplier is not None else None
+        # Supplier display will be handled by projection / integration later.
+        # PMS owner schema keeps only supplier_id as scalar.
+        return None
 
     def get_base_uom(self) -> Optional["ItemUOM"]:
         for u in self.uoms or []:
