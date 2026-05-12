@@ -1,6 +1,8 @@
 # app/pms/suppliers/contracts/suppliers.py
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -70,3 +72,28 @@ class SupplierBasic(BaseModel):
     name: str
     code: str | None = None
     active: bool
+
+
+class PmsProjectionSupplierFeedRow(BaseModel):
+    """
+    PMS supplier projection feed row.
+
+    This is the read model consumed by WMS projection sync.
+    It intentionally carries only supplier master data needed for WMS read/options/display.
+    Supplier contacts remain PMS-owner data and are not included in this first projection feed.
+    """
+
+    supplier_id: int
+    supplier_code: str
+    supplier_name: str
+    active: bool
+    website: str | None = None
+    source_updated_at: datetime | None = None
+
+
+class PmsProjectionSupplierFeedOut(BaseModel):
+    rows: list[PmsProjectionSupplierFeedRow] = Field(default_factory=list)
+    limit: int
+    offset: int
+    next_offset: int | None = None
+    has_more: bool = False

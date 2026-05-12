@@ -34,6 +34,7 @@ def test_pms_supplier_owner_and_read_routes_are_registered() -> None:
     assert ("DELETE", "/pms/supplier-contacts/{contact_id}") in pairs
     assert ("GET", "/pms/read/v1/suppliers") in pairs
     assert ("GET", "/pms/read/v1/suppliers/{supplier_id}") in pairs
+    assert ("GET", "/pms/read/v1/projection-feed/suppliers") in pairs
 
 
 def test_no_legacy_partners_supplier_routes_are_mounted_in_pms_api() -> None:
