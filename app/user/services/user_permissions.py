@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.user.models.permission import Permission
 from app.user.models.user import user_permissions
+from app.user.services.user_errors import AuthorizationError
 
 
 def get_user_permissions(db: Session, user: Any) -> list[str]:
@@ -44,3 +45,23 @@ def get_user_permissions(db: Session, user: Any) -> list[str]:
             seen.add(name)
             out.append(name)
     return out
+
+
+def check_permission(
+    db: Session,
+    user: Any,
+    required: list[str],
+    *,
+    any_of: bool = True,
+) -> bool:
+    perms = set(get_user_permissions(db, user))
+    req = set(required)
+
+    ok = bool(perms & req) if any_of else req.issubset(perms)
+    if not ok:
+        raise AuthorizationError("你没有访问该资源的权限")
+
+    return True
+
+
+__all__ = ["get_user_permissions", "check_permission"]

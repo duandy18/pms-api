@@ -12,7 +12,7 @@ class PageRegistry(Base):
 
     __table_args__ = (
         sa.CheckConstraint(
-            "domain_code IN ('pms')",
+            "domain_code IN ('pms', 'admin')",
             name="ck_page_registry_domain_code",
         ),
         sa.CheckConstraint("level IN (1, 2, 3)", name="ck_page_registry_level"),
