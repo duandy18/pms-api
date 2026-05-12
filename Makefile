@@ -9,7 +9,10 @@ ALEMB := $(PY) -m alembic
 
 DEV_DB_DSN := postgresql+psycopg://wms:wms@127.0.0.1:5433/pms
 
-.PHONY: venv install dev dev-db test lint routes db-smoke upgrade-dev alembic-check alembic-current alembic-history dev-ensure-admin
+HOST ?= 0.0.0.0
+PORT ?= 8005
+
+.PHONY: venv install uvicorn dev dev-db test lint routes db-smoke upgrade-dev alembic-check alembic-current alembic-history dev-ensure-admin
 
 venv:
 >python3 -m venv $(VENV)
@@ -18,11 +21,12 @@ venv:
 install:
 >$(PIP) install -e ".[dev]"
 
-dev:
->PYTHONPATH=. $(PY) -m uvicorn app.main:app --host 127.0.0.1 --port 8002 --reload
+uvicorn:
+>PMS_DATABASE_URL="$(DEV_DB_DSN)" PYTHONPATH=. $(PY) -m uvicorn app.main:app --host $(HOST) --port $(PORT) --reload
 
-dev-db:
->PMS_DATABASE_URL="$(DEV_DB_DSN)" PYTHONPATH=. $(PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+dev: uvicorn
+
+dev-db: uvicorn
 
 test:
 >PYTHONPATH=. $(PYTEST) $(TESTS)
