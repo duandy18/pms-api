@@ -1,11 +1,13 @@
 # app/user/repositories/user_repository.py
 from __future__ import annotations
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.user.models.permission import Permission
 from app.user.models.user import User, user_permissions
+from app.user.services.user_errors import DuplicateUserError, NotFoundError
 
 
 class UserRepository:
@@ -21,12 +23,51 @@ class UserRepository:
     def list_users(self) -> list[User]:
         return self.db.query(User).order_by(User.id.asc()).all()
 
+    def count_active_users_with_permission(self, permission_name: str) -> int:
+        return int(
+            self.db.query(User.id)
+            .join(user_permissions, user_permissions.c.user_id == User.id)
+            .join(Permission, Permission.id == user_permissions.c.permission_id)
+            .filter(User.is_active.is_(True), Permission.name == permission_name)
+            .distinct()
+            .count()
+        )
+
+    def list_permissions(self) -> list[Permission]:
+        return self.db.query(Permission).order_by(Permission.id.asc()).all()
+
+    def _normalize_permission_ids(self, permission_ids: list[int] | None) -> list[int]:
+        if not permission_ids:
+            return []
+
+        out: list[int] = []
+        seen: set[int] = set()
+        for raw in permission_ids:
+            pid = int(raw)
+            if pid not in seen:
+                seen.add(pid)
+                out.append(pid)
+        return out
+
+    def _ensure_permissions_exist(self, permission_ids: list[int] | None) -> list[int]:
+        ids = self._normalize_permission_ids(permission_ids)
+        if not ids:
+            return []
+
+        perms = self.db.query(Permission).filter(Permission.id.in_(ids)).all()
+        existing_ids = {int(permission.id) for permission in perms}
+        missing = [pid for pid in ids if pid not in existing_ids]
+        if missing:
+            raise NotFoundError(f"权限不存在: {missing}")
+
+        return ids
+
     def _replace_user_permissions(self, user_id: int, permission_ids: list[int]) -> None:
-        self.db.execute(user_permissions.delete().where(user_permissions.c.user_id == user_id))
+        self.db.execute(user_permissions.delete().where(user_permissions.c.user_id == int(user_id)))
         for permission_id in permission_ids:
             self.db.execute(
                 user_permissions.insert().values(
-                    user_id=user_id,
+                    user_id=int(user_id),
                     permission_id=int(permission_id),
                 )
             )
@@ -43,16 +84,9 @@ class UserRepository:
     ) -> User:
         existed = self.get_user_by_username(username)
         if existed:
-            raise ValueError("用户名已存在")
+            raise DuplicateUserError("用户名已存在")
 
-        ids = []
-        if permission_ids:
-            perms = self.db.query(Permission).filter(Permission.id.in_(permission_ids)).all()
-            existing_ids = {int(permission.id) for permission in perms}
-            missing = [int(permission_id) for permission_id in permission_ids if int(permission_id) not in existing_ids]
-            if missing:
-                raise ValueError(f"权限不存在: {missing}")
-            ids = sorted(existing_ids)
+        normalized_permission_ids = self._ensure_permissions_exist(permission_ids)
 
         user = User(
             username=username.strip(),
@@ -64,9 +98,78 @@ class UserRepository:
         self.db.add(user)
         self.db.flush()
 
-        self._replace_user_permissions(int(user.id), ids)
+        self._replace_user_permissions(int(user.id), normalized_permission_ids)
 
         self.db.commit()
         self.db.refresh(user)
         self.db.expire(user, ["permissions"])
         return user
+
+    def update_user_profile(
+        self,
+        *,
+        user_id: int,
+        full_name: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+        is_active: bool | None = None,
+    ) -> User:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            raise NotFoundError("用户不存在")
+
+        if full_name is not None:
+            user.full_name = full_name.strip() or None
+        if phone is not None:
+            user.phone = phone.strip() or None
+        if email is not None:
+            user.email = email.strip() or None
+        if is_active is not None:
+            user.is_active = bool(is_active)
+
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def replace_user_permissions(
+        self,
+        *,
+        user_id: int,
+        permission_ids: list[int] | None = None,
+    ) -> User:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            raise NotFoundError("用户不存在")
+
+        normalized_permission_ids = self._ensure_permissions_exist(permission_ids)
+        self._replace_user_permissions(int(user_id), normalized_permission_ids)
+
+        self.db.commit()
+        self.db.refresh(user)
+        self.db.expire(user, ["permissions"])
+        return user
+
+    def reset_user_password(self, *, user_id: int, new_password: str) -> User:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            raise NotFoundError("用户不存在")
+
+        user.password_hash = get_password_hash(new_password)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def delete_user(self, *, user_id: int) -> None:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            raise NotFoundError("用户不存在")
+
+        try:
+            self.db.delete(user)
+            self.db.commit()
+        except IntegrityError:
+            self.db.rollback()
+            raise ValueError("该用户已被业务单据引用，暂不能删除")
+
+
+__all__ = ["UserRepository"]
