@@ -34,7 +34,7 @@ from app.routers.pms_read_v1 import (
 
 
 class FakeItemBasicReader:
-    def list_item_basics(self, *, keyword=None, enabled=None, limit=50):
+    def list_item_basics(self, *, supplier_id=None, keyword=None, enabled=None, limit=50):
         _ = keyword
         _ = enabled
         _ = limit
