@@ -7,7 +7,7 @@ PIP := $(VENV)/bin/pip
 PYTEST := $(VENV)/bin/pytest
 ALEMB := $(PY) -m alembic
 
-DEV_DB_DSN ?= postgresql+psycopg://wms:wms@127.0.0.1:5433/pms
+DEV_DB_DSN ?= postgresql+psycopg://pms:pms@127.0.0.1:5433/pms
 PMS_DATABASE_URL ?= $(DEV_DB_DSN)
 
 HOST ?= 0.0.0.0
