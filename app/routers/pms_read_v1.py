@@ -56,6 +56,7 @@ class ItemBasicReader(Protocol):
     def list_item_basics(
         self,
         *,
+        supplier_id: int | None = None,
         keyword: str | None = None,
         enabled: bool | None = None,
         limit: int = 50,
@@ -320,12 +321,18 @@ async def projection_feed_barcodes(
 
 @router.get("/items/basic", response_model=list[ItemBasic])
 async def list_item_basics(
+    supplier_id: int | None = Query(None, ge=1),
     keyword: str | None = Query(default=None, max_length=128),
     enabled: bool | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
     reader: ItemBasicReader = Depends(get_item_basic_reader),
 ) -> list[ItemBasic]:
-    return reader.list_item_basics(keyword=keyword, enabled=enabled, limit=limit)
+    return reader.list_item_basics(
+        supplier_id=supplier_id,
+        keyword=keyword,
+        enabled=enabled,
+        limit=limit,
+    )
 
 
 @router.get("/items/basic/{item_id}", response_model=ItemBasic)

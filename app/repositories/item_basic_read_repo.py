@@ -63,11 +63,15 @@ class ItemBasicReadRepository:
     def list_item_basics(
         self,
         *,
+        supplier_id: int | None = None,
         keyword: str | None = None,
         enabled: bool | None = None,
         limit: int = 50,
     ) -> list[ItemBasic]:
         stmt = self._base_stmt()
+
+        if supplier_id is not None:
+            stmt = stmt.where(items_table.c.supplier_id == int(supplier_id))
 
         kw = str(keyword or "").strip()
         if kw:
