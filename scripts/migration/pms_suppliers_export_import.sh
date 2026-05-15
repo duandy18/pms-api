@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 SOURCE_DSN="${PMS_SUPPLIER_SOURCE_PSQL_DSN:-postgres://wms:wms@127.0.0.1:5433/wms}"
-TARGET_DSN="${PMS_SUPPLIER_TARGET_PSQL_DSN:-postgres://wms:wms@127.0.0.1:5433/pms}"
+TARGET_DSN="${PMS_SUPPLIER_TARGET_PSQL_DSN:-postgres://pms:pms@127.0.0.1:5433/pms}"
 EXPORT_DIR="${PMS_SUPPLIER_EXPORT_DIR:-/tmp/pms_suppliers_export_$(date +%Y%m%d_%H%M%S)}"
 
 mkdir -p "${EXPORT_DIR}"
