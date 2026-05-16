@@ -5,16 +5,16 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
-from app.service_auth.deps import (
+from app.pms.system.service_auth.deps import (
     PMS_SERVICE_CLIENT_HEADER,
     require_pms_service_capability,
 )
-from app.service_auth.models import (
+from app.pms.system.service_auth.models import (
     PmsServiceCapability,
     PmsServiceClient,
     PmsServicePermission,
 )
-from app.service_auth.services import PmsServicePermissionService
+from app.pms.system.service_auth.services import PmsServicePermissionService
 
 
 def _sqlite_session() -> Session:

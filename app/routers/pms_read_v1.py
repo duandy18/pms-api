@@ -48,7 +48,7 @@ from app.repositories.sku_code_read_repo import (
     SkuCodeResolveError,
 )
 from app.repositories.uom_read_repo import UomReadRepository
-from app.service_auth.deps import require_pms_service_capability
+from app.pms.system.service_auth.deps import require_pms_service_capability
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 

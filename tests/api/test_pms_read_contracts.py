@@ -16,7 +16,7 @@ from app.contracts.pms_read import (
 )
 from app.main import app
 from app.routers.pms_read_v1 import get_barcode_reader, get_item_basic_reader
-from app.service_auth.deps import (
+from app.pms.system.service_auth.deps import (
     PMS_SERVICE_CLIENT_HEADER,
     get_pms_service_permission_service,
 )
