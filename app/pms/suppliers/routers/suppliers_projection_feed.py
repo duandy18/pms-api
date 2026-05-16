@@ -7,11 +7,14 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.pms.suppliers.contracts.suppliers import PmsProjectionSupplierFeedOut
 from app.pms.suppliers.services.supplier_read_service import SupplierReadService
+from app.service_auth.deps import require_pms_service_capability
 
 router = APIRouter(
     prefix="/pms/read/v1/projection-feed",
     tags=["pms-read-v1-projection-feed-suppliers"],
 )
+
+require_pms_read_suppliers = require_pms_service_capability("pms.read.suppliers")
 
 
 def get_supplier_read_service(db: Session = Depends(get_db)) -> SupplierReadService:
@@ -23,6 +26,7 @@ def projection_feed_suppliers(
     limit: int = Query(default=500, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     service: SupplierReadService = Depends(get_supplier_read_service),
+    _service_permission: None = Depends(require_pms_read_suppliers),
 ) -> PmsProjectionSupplierFeedOut:
     rows = service.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
     return PmsProjectionSupplierFeedOut(
@@ -32,3 +36,11 @@ def projection_feed_suppliers(
         next_offset=(int(offset) + int(limit)) if len(rows) > int(limit) else None,
         has_more=len(rows) > int(limit),
     )
+
+
+__all__ = [
+    "get_supplier_read_service",
+    "projection_feed_suppliers",
+    "require_pms_read_suppliers",
+    "router",
+]
