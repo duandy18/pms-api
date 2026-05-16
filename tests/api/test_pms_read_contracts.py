@@ -16,6 +16,17 @@ from app.contracts.pms_read import (
 )
 from app.main import app
 from app.routers.pms_read_v1 import get_barcode_reader, get_item_basic_reader
+from app.service_auth.deps import (
+    PMS_SERVICE_CLIENT_HEADER,
+    get_pms_service_permission_service,
+)
+
+
+class FakePermissionService:
+    def is_allowed(self, *, client_code: str | None, capability_code: str | None) -> bool:
+        _ = client_code
+        _ = capability_code
+        return True
 
 
 class FakeItemBasicReader:
@@ -52,6 +63,10 @@ class FakeBarcodeReader:
             status=BarcodeProbeStatus.UNBOUND,
             barcode=barcode.strip(),
         )
+
+
+def _service_headers() -> dict[str, str]:
+    return {PMS_SERVICE_CLIENT_HEADER: "wms-service"}
 
 
 def test_contract_models_validate_current_read_shapes() -> None:
@@ -150,12 +165,14 @@ def test_read_v1_routes_are_mounted() -> None:
 
 def test_batch_item_basic_endpoint_uses_reader_dependency() -> None:
     app.dependency_overrides[get_item_basic_reader] = lambda: FakeItemBasicReader()
+    app.dependency_overrides[get_pms_service_permission_service] = lambda: FakePermissionService()
     client = TestClient(app)
 
     try:
         response = client.post(
             "/pms/read/v1/items/basic/batch",
             json={"item_ids": [2, 1, 1], "enabled_only": True},
+            headers=_service_headers(),
         )
     finally:
         app.dependency_overrides.clear()
@@ -171,12 +188,14 @@ def test_batch_item_basic_endpoint_uses_reader_dependency() -> None:
 
 def test_barcode_probe_stub_returns_unbound() -> None:
     app.dependency_overrides[get_barcode_reader] = lambda: FakeBarcodeReader()
+    app.dependency_overrides[get_pms_service_permission_service] = lambda: FakePermissionService()
     client = TestClient(app)
 
     try:
         response = client.post(
             "/pms/read/v1/barcodes/probe",
             json={"barcode": "6900000000001"},
+            headers=_service_headers(),
         )
     finally:
         app.dependency_overrides.clear()
