@@ -9,7 +9,11 @@ from app.service_auth.deps import (
     PMS_SERVICE_CLIENT_HEADER,
     require_pms_service_capability,
 )
-from app.service_auth.models import PmsServiceClient, PmsServicePermission
+from app.service_auth.models import (
+    PmsServiceCapability,
+    PmsServiceClient,
+    PmsServicePermission,
+)
 from app.service_auth.services import PmsServicePermissionService
 
 
@@ -24,6 +28,7 @@ def _sqlite_session() -> Session:
             lambda value: "" if value is None else str(value).strip(),
         )
 
+    PmsServiceCapability.__table__.create(engine)
     PmsServiceClient.__table__.create(engine)
     PmsServicePermission.__table__.create(engine)
     return Session(bind=engine)
@@ -34,9 +39,19 @@ def _seed_permission(
     *,
     client_code: str,
     capability_code: str,
+    capability_active: bool = True,
     client_active: bool = True,
     permission_active: bool = True,
 ) -> None:
+    capability = PmsServiceCapability(
+        capability_code=capability_code,
+        capability_name=f"{capability_code} name",
+        resource_code=capability_code.split(".")[-1],
+        is_active=capability_active,
+    )
+    db.add(capability)
+    db.flush()
+
     client = PmsServiceClient(
         client_code=client_code,
         client_name=f"{client_code} name",
@@ -74,14 +89,20 @@ def test_pms_service_permission_service_rejects_missing_inactive_or_ungranted() 
     with _sqlite_session() as db:
         _seed_permission(
             db,
+            client_code="inactive-capability-client",
+            capability_code="pms.read.inactive_capability",
+            capability_active=False,
+        )
+        _seed_permission(
+            db,
             client_code="inactive-client",
-            capability_code="pms.read.items",
+            capability_code="pms.read.inactive_client",
             client_active=False,
         )
         _seed_permission(
             db,
             client_code="inactive-permission",
-            capability_code="pms.read.items",
+            capability_code="pms.read.inactive_permission",
             permission_active=False,
         )
         _seed_permission(
@@ -95,8 +116,18 @@ def test_pms_service_permission_service_rejects_missing_inactive_or_ungranted() 
         assert not service.is_allowed(client_code=None, capability_code="pms.read.items")
         assert not service.is_allowed(client_code="wms-service", capability_code=None)
         assert not service.is_allowed(client_code="unknown-service", capability_code="pms.read.items")
-        assert not service.is_allowed(client_code="inactive-client", capability_code="pms.read.items")
-        assert not service.is_allowed(client_code="inactive-permission", capability_code="pms.read.items")
+        assert not service.is_allowed(
+            client_code="inactive-capability-client",
+            capability_code="pms.read.inactive_capability",
+        )
+        assert not service.is_allowed(
+            client_code="inactive-client",
+            capability_code="pms.read.inactive_client",
+        )
+        assert not service.is_allowed(
+            client_code="inactive-permission",
+            capability_code="pms.read.inactive_permission",
+        )
         assert not service.is_allowed(client_code="wms-service", capability_code="pms.read.suppliers")
 
 

@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.service_auth.models import PmsServiceClient, PmsServicePermission
+from app.service_auth.models import (
+    PmsServiceCapability,
+    PmsServiceClient,
+    PmsServicePermission,
+)
 
 
 class PmsServicePermissionService:
@@ -33,8 +37,13 @@ class PmsServicePermissionService:
         row = (
             self.db.query(PmsServicePermission.id)
             .join(PmsServiceClient, PmsServiceClient.id == PmsServicePermission.client_id)
+            .join(
+                PmsServiceCapability,
+                PmsServiceCapability.capability_code == PmsServicePermission.capability_code,
+            )
             .filter(PmsServiceClient.client_code == normalized_client_code)
             .filter(PmsServiceClient.is_active.is_(True))
+            .filter(PmsServiceCapability.is_active.is_(True))
             .filter(PmsServicePermission.capability_code == normalized_capability_code)
             .filter(PmsServicePermission.is_active.is_(True))
             .first()
