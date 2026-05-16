@@ -31,10 +31,30 @@ from app.routers.pms_read_v1 import (
     get_sku_code_reader,
     get_uom_reader,
 )
+from app.service_auth.deps import (
+    PMS_SERVICE_CLIENT_HEADER,
+    get_pms_service_permission_service,
+)
+
+
+class FakePermissionService:
+    def is_allowed(self, *, client_code: str | None, capability_code: str | None) -> bool:
+        _ = client_code
+        _ = capability_code
+        return True
+
+
+def _service_headers() -> dict[str, str]:
+    return {PMS_SERVICE_CLIENT_HEADER: "wms-service"}
+
+
+def _install_permission_override() -> None:
+    app.dependency_overrides[get_pms_service_permission_service] = lambda: FakePermissionService()
 
 
 class FakeItemBasicReader:
     def list_item_basics(self, *, supplier_id=None, keyword=None, enabled=None, limit=50):
+        _ = supplier_id
         _ = keyword
         _ = enabled
         _ = limit
@@ -207,6 +227,7 @@ class FakeSkuCodeReader:
 
 
 def test_batch_endpoints_clean_ids_before_reader_dependency() -> None:
+    _install_permission_override()
     app.dependency_overrides[get_item_basic_reader] = lambda: FakeItemBasicReader()
     app.dependency_overrides[get_item_policy_reader] = lambda: FakeItemPolicyReader()
     app.dependency_overrides[get_item_report_meta_reader] = lambda: FakeItemReportMetaReader()
@@ -216,86 +237,141 @@ def test_batch_endpoints_clean_ids_before_reader_dependency() -> None:
         assert client.post(
             "/pms/read/v1/items/basic/batch",
             json={"item_ids": [3, 2, 2, 0]},
+            headers=_service_headers(),
         ).json()["missing_item_ids"] == [2, 3]
 
         assert client.post(
             "/pms/read/v1/items/policies/batch",
             json={"item_ids": [5, 4, 4, 0]},
+            headers=_service_headers(),
         ).json()["missing_item_ids"] == [4, 5]
 
         assert client.post(
             "/pms/read/v1/items/report-meta/batch",
             json={"item_ids": [9, 8, 8, 0]},
+            headers=_service_headers(),
         ).json()["missing_item_ids"] == [8, 9]
     finally:
         app.dependency_overrides.clear()
 
 
 def test_single_item_policy_and_search_endpoints_use_reader_dependency() -> None:
+    _install_permission_override()
     app.dependency_overrides[get_item_basic_reader] = lambda: FakeItemBasicReader()
     app.dependency_overrides[get_item_policy_reader] = lambda: FakeItemPolicyReader()
     app.dependency_overrides[get_item_report_meta_reader] = lambda: FakeItemReportMetaReader()
     client = TestClient(app)
 
     try:
-        assert client.get("/pms/read/v1/items/basic").status_code == 200
-        assert client.get("/pms/read/v1/items/basic/1").json()["id"] == 1
-        assert client.get("/pms/read/v1/items/basic/999").status_code == 404
-        assert client.get("/pms/read/v1/items/1/policy").json()["item_id"] == 1
-        assert client.get("/pms/read/v1/items/999/policy").status_code == 404
+        assert client.get(
+            "/pms/read/v1/items/basic",
+            headers=_service_headers(),
+        ).status_code == 200
+        assert client.get(
+            "/pms/read/v1/items/basic/1",
+            headers=_service_headers(),
+        ).json()["id"] == 1
+        assert client.get(
+            "/pms/read/v1/items/basic/999",
+            headers=_service_headers(),
+        ).status_code == 404
+        assert client.get(
+            "/pms/read/v1/items/1/policy",
+            headers=_service_headers(),
+        ).json()["item_id"] == 1
+        assert client.get(
+            "/pms/read/v1/items/999/policy",
+            headers=_service_headers(),
+        ).status_code == 404
         assert client.get(
             "/pms/read/v1/items/policy-by-sku",
             params={"sku": "SKU001"},
+            headers=_service_headers(),
         ).json()["item_id"] == 1
         assert client.get(
             "/pms/read/v1/items/report-search",
             params={"keyword": "SKU", "limit": 50},
+            headers=_service_headers(),
         ).json() == ReportSearchOut(item_ids=[1, 2]).model_dump()
     finally:
         app.dependency_overrides.clear()
 
 
 def test_uom_barcode_and_sku_code_compat_endpoints_use_reader_dependency() -> None:
+    _install_permission_override()
     app.dependency_overrides[get_uom_reader] = lambda: FakeUomReader()
     app.dependency_overrides[get_barcode_reader] = lambda: FakeBarcodeReader()
     app.dependency_overrides[get_sku_code_reader] = lambda: FakeSkuCodeReader()
     client = TestClient(app)
 
     try:
-        assert client.get("/pms/read/v1/uoms/7").json()["id"] == 7
-        assert client.get("/pms/read/v1/uoms/999").status_code == 404
-        assert client.get("/pms/read/v1/items/1/uoms").json() == []
+        assert client.get(
+            "/pms/read/v1/uoms/7",
+            headers=_service_headers(),
+        ).json()["id"] == 7
+        assert client.get(
+            "/pms/read/v1/uoms/999",
+            headers=_service_headers(),
+        ).status_code == 404
+        assert client.get(
+            "/pms/read/v1/items/1/uoms",
+            headers=_service_headers(),
+        ).json() == []
         assert client.post(
             "/pms/read/v1/uoms/query",
             json={"item_ids": [1], "item_uom_ids": [10]},
+            headers=_service_headers(),
         ).json()["missing_item_uom_ids"] == [10]
         assert client.post(
             "/pms/read/v1/items/uom-defaults/batch",
             json={"item_ids": [1, 0], "usage": "OUTBOUND"},
+            headers=_service_headers(),
         ).json()["missing_item_ids"] == [1]
 
-        assert client.get("/pms/read/v1/barcodes/2").json()["id"] == 2
-        assert client.get("/pms/read/v1/barcodes/999").status_code == 404
-        assert client.get("/pms/read/v1/items/1/barcodes").json() == []
+        assert client.get(
+            "/pms/read/v1/barcodes/2",
+            headers=_service_headers(),
+        ).json()["id"] == 2
+        assert client.get(
+            "/pms/read/v1/barcodes/999",
+            headers=_service_headers(),
+        ).status_code == 404
+        assert client.get(
+            "/pms/read/v1/items/1/barcodes",
+            headers=_service_headers(),
+        ).json() == []
         assert client.post(
             "/pms/read/v1/barcodes/probe",
             json={"barcode": " BC1 "},
+            headers=_service_headers(),
         ).json()["barcode"] == "BC1"
 
-        assert client.get("/pms/read/v1/sku-codes/10").json()["id"] == 10
-        assert client.get("/pms/read/v1/sku-codes/999").status_code == 404
-        assert client.get("/pms/read/v1/items/1/sku-codes").json() == []
+        assert client.get(
+            "/pms/read/v1/sku-codes/10",
+            headers=_service_headers(),
+        ).json()["id"] == 10
+        assert client.get(
+            "/pms/read/v1/sku-codes/999",
+            headers=_service_headers(),
+        ).status_code == 404
+        assert client.get(
+            "/pms/read/v1/items/1/sku-codes",
+            headers=_service_headers(),
+        ).json() == []
         assert client.post(
             "/pms/read/v1/sku-codes/query",
             json={"item_ids": [1], "sku_code_ids": [10]},
+            headers=_service_headers(),
         ).json()["sku_codes"] == []
         assert client.get(
             "/pms/read/v1/sku-codes/resolve-outbound-default",
             params={"code": "SKU001"},
+            headers=_service_headers(),
         ).json()["sku_code"] == "SKU001"
         assert client.get(
             "/pms/read/v1/sku-codes/resolve-outbound-default",
             params={"code": "MISSING"},
+            headers=_service_headers(),
         ).status_code == 404
     finally:
         app.dependency_overrides.clear()

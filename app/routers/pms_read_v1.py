@@ -337,6 +337,7 @@ async def list_item_basics(
     enabled: bool | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
     reader: ItemBasicReader = Depends(get_item_basic_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> list[ItemBasic]:
     return reader.list_item_basics(
         supplier_id=supplier_id,
@@ -350,6 +351,7 @@ async def list_item_basics(
 async def get_item_basic(
     item_id: int,
     reader: ItemBasicReader = Depends(get_item_basic_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ItemBasic:
     row = reader.get_item_basic(item_id=int(item_id))
     if row is None:
@@ -361,6 +363,7 @@ async def get_item_basic(
 async def batch_item_basics(
     payload: ItemIdsBatchIn,
     reader: ItemBasicReader = Depends(get_item_basic_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ItemBasicBatchOut:
     item_ids = _clean_ids(payload.item_ids)
     if not item_ids:
@@ -372,6 +375,7 @@ async def batch_item_basics(
 async def get_item_policy_by_sku(
     sku: str = Query(..., min_length=1, max_length=128),
     reader: ItemPolicyReader = Depends(get_item_policy_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ItemPolicy:
     row = reader.get_item_policy_by_sku(sku=sku)
     if row is None:
@@ -383,6 +387,7 @@ async def get_item_policy_by_sku(
 async def get_item_policy(
     item_id: int,
     reader: ItemPolicyReader = Depends(get_item_policy_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ItemPolicy:
     row = reader.get_item_policy(item_id=int(item_id))
     if row is None:
@@ -394,6 +399,7 @@ async def get_item_policy(
 async def batch_item_policies(
     payload: ItemIdsBatchIn,
     reader: ItemPolicyReader = Depends(get_item_policy_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ItemPolicyBatchOut:
     item_ids = _clean_ids(payload.item_ids)
     if not item_ids:
@@ -406,6 +412,7 @@ async def search_report_items(
     keyword: str = Query(..., min_length=1, max_length=128),
     limit: int = Query(default=50, ge=1, le=500),
     reader: ItemReportMetaReader = Depends(get_item_report_meta_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ReportSearchOut:
     return ReportSearchOut(
         item_ids=reader.search_report_item_ids_by_keyword(keyword=keyword, limit=limit)
@@ -416,6 +423,7 @@ async def search_report_items(
 async def batch_item_report_meta(
     payload: ItemIdsBatchIn,
     reader: ItemReportMetaReader = Depends(get_item_report_meta_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> ItemReportMetaBatchOut:
     item_ids = _clean_ids(payload.item_ids)
     if not item_ids:
@@ -427,6 +435,7 @@ async def batch_item_report_meta(
 async def list_item_uoms(
     item_id: int,
     reader: UomReader = Depends(get_uom_reader),
+    _service_permission: None = Depends(require_pms_read_uoms),
 ) -> list[PmsExportUom]:
     return reader.query_uoms(item_ids=[int(item_id)], item_uom_ids=[]).uoms
 
@@ -435,6 +444,7 @@ async def list_item_uoms(
 async def get_uom(
     item_uom_id: int,
     reader: UomReader = Depends(get_uom_reader),
+    _service_permission: None = Depends(require_pms_read_uoms),
 ) -> PmsExportUom:
     row = reader.get_uom(item_uom_id=int(item_uom_id))
     if row is None:
@@ -446,6 +456,7 @@ async def get_uom(
 async def query_uoms(
     payload: UomQueryIn,
     reader: UomReader = Depends(get_uom_reader),
+    _service_permission: None = Depends(require_pms_read_uoms),
 ) -> UomQueryOut:
     return reader.query_uoms(
         item_ids=_clean_ids(payload.item_ids),
@@ -457,6 +468,7 @@ async def query_uoms(
 async def batch_uom_defaults(
     payload: UomDefaultsBatchIn,
     reader: UomReader = Depends(get_uom_reader),
+    _service_permission: None = Depends(require_pms_read_uoms),
 ) -> UomDefaultsBatchOut:
     item_ids = _clean_ids(payload.item_ids)
     if not item_ids:
@@ -468,6 +480,7 @@ async def batch_uom_defaults(
 async def get_barcode(
     barcode_id: int,
     reader: BarcodeReader = Depends(get_barcode_reader),
+    _service_permission: None = Depends(require_pms_read_barcodes),
 ) -> PmsExportBarcode:
     row = reader.get_barcode(barcode_id=int(barcode_id))
     if row is None:
@@ -481,6 +494,7 @@ async def list_item_barcodes(
     active: bool | None = Query(default=True),
     primary_only: bool = Query(default=False),
     reader: BarcodeReader = Depends(get_barcode_reader),
+    _service_permission: None = Depends(require_pms_read_barcodes),
 ) -> list[PmsExportBarcode]:
     return reader.query_barcodes(
         item_ids=[int(item_id)],
@@ -495,6 +509,7 @@ async def list_item_barcodes(
 async def query_barcodes(
     payload: BarcodeQueryIn,
     reader: BarcodeReader = Depends(get_barcode_reader),
+    _service_permission: None = Depends(require_pms_read_barcodes),
 ) -> BarcodeQueryOut:
     return reader.query_barcodes(
         item_ids=_clean_ids(payload.item_ids),
@@ -509,6 +524,7 @@ async def query_barcodes(
 async def probe_barcode(
     payload: BarcodeProbeIn,
     reader: BarcodeReader = Depends(get_barcode_reader),
+    _service_permission: None = Depends(require_pms_read_barcodes),
 ) -> BarcodeProbeOut:
     return reader.probe_barcode(barcode=payload.barcode)
 
@@ -521,6 +537,7 @@ async def resolve_outbound_default_sku_code(
     code: str = Query(..., min_length=1, max_length=128),
     enabled_only: bool = Query(default=True),
     reader: SkuCodeReader = Depends(get_sku_code_reader),
+    _service_permission: None = Depends(require_pms_read_sku_codes),
 ) -> PmsExportSkuCodeResolution:
     try:
         return reader.resolve_outbound_default_sku_code(
@@ -538,6 +555,7 @@ async def resolve_outbound_default_sku_code(
 async def get_sku_code(
     sku_code_id: int,
     reader: SkuCodeReader = Depends(get_sku_code_reader),
+    _service_permission: None = Depends(require_pms_read_sku_codes),
 ) -> PmsExportSkuCode:
     row = reader.get_sku_code(sku_code_id=int(sku_code_id))
     if row is None:
@@ -551,6 +569,7 @@ async def list_item_sku_codes(
     active: bool | None = Query(default=True),
     primary_only: bool = Query(default=False),
     reader: SkuCodeReader = Depends(get_sku_code_reader),
+    _service_permission: None = Depends(require_pms_read_sku_codes),
 ) -> list[PmsExportSkuCode]:
     return reader.query_sku_codes(
         item_ids=[int(item_id)],
@@ -565,6 +584,7 @@ async def list_item_sku_codes(
 async def query_sku_codes(
     payload: SkuCodeQueryIn,
     reader: SkuCodeReader = Depends(get_sku_code_reader),
+    _service_permission: None = Depends(require_pms_read_sku_codes),
 ) -> SkuCodeQueryOut:
     return reader.query_sku_codes(
         item_ids=_clean_ids(payload.item_ids),
