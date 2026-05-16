@@ -30,6 +30,8 @@ EXPECTED_CURRENT_PMS_TABLES = PMS_OWNER_BASELINE_TABLES | {
     "page_route_prefixes",
     "suppliers",
     "supplier_contacts",
+    "pms_service_clients",
+    "pms_service_permissions",
 }
 
 
