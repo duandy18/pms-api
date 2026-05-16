@@ -48,6 +48,7 @@ from app.repositories.sku_code_read_repo import (
     SkuCodeResolveError,
 )
 from app.repositories.uom_read_repo import UomReadRepository
+from app.service_auth.deps import require_pms_service_capability
 
 router = APIRouter(prefix="/pms/read/v1", tags=["pms-read-v1"])
 
@@ -250,6 +251,12 @@ def get_sku_code_reader(db: Session = Depends(get_db)) -> SkuCodeReader:
     return SkuCodeReadRepository(db)
 
 
+require_pms_read_items = require_pms_service_capability("pms.read.items")
+require_pms_read_uoms = require_pms_service_capability("pms.read.uoms")
+require_pms_read_sku_codes = require_pms_service_capability("pms.read.sku_codes")
+require_pms_read_barcodes = require_pms_service_capability("pms.read.barcodes")
+
+
 @router.get("/health", response_model=PmsReadHealthOut)
 async def read_v1_health() -> PmsReadHealthOut:
     return PmsReadHealthOut(status="ok", surface="pms-read-v1")
@@ -260,6 +267,7 @@ async def projection_feed_items(
     limit: int = Query(default=500, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     reader: ItemBasicReader = Depends(get_item_basic_reader),
+    _service_permission: None = Depends(require_pms_read_items),
 ) -> PmsProjectionItemFeedOut:
     rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
     return PmsProjectionItemFeedOut(
@@ -276,6 +284,7 @@ async def projection_feed_uoms(
     limit: int = Query(default=500, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     reader: UomReader = Depends(get_uom_reader),
+    _service_permission: None = Depends(require_pms_read_uoms),
 ) -> PmsProjectionUomFeedOut:
     rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
     return PmsProjectionUomFeedOut(
@@ -292,6 +301,7 @@ async def projection_feed_sku_codes(
     limit: int = Query(default=500, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     reader: SkuCodeReader = Depends(get_sku_code_reader),
+    _service_permission: None = Depends(require_pms_read_sku_codes),
 ) -> PmsProjectionSkuCodeFeedOut:
     rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
     return PmsProjectionSkuCodeFeedOut(
@@ -308,6 +318,7 @@ async def projection_feed_barcodes(
     limit: int = Query(default=500, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     reader: BarcodeReader = Depends(get_barcode_reader),
+    _service_permission: None = Depends(require_pms_read_barcodes),
 ) -> PmsProjectionBarcodeFeedOut:
     rows = reader.list_projection_feed(limit=int(limit) + 1, offset=int(offset))
     return PmsProjectionBarcodeFeedOut(
@@ -571,5 +582,9 @@ __all__ = [
     "get_item_report_meta_reader",
     "get_sku_code_reader",
     "get_uom_reader",
+    "require_pms_read_barcodes",
+    "require_pms_read_items",
+    "require_pms_read_sku_codes",
+    "require_pms_read_uoms",
     "router",
 ]
