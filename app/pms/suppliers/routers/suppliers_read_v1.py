@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.pms.suppliers.contracts.suppliers import SupplierBasic
 from app.pms.suppliers.services.supplier_read_service import SupplierReadService
-from app.service_auth.deps import require_pms_service_capability
+from app.pms.system.service_auth.deps import require_pms_service_capability
 
 router = APIRouter(prefix="/pms/read/v1/suppliers", tags=["pms-read-v1-suppliers"])
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.db.metadata import metadata
-from app.service_auth.models import (
+from app.pms.system.service_auth.models import (
     PmsServiceCapability,
     PmsServiceCapabilityRoute,
     PmsServiceClient,

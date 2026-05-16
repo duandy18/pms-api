@@ -31,7 +31,7 @@ from app.routers.pms_read_v1 import (
     get_sku_code_reader,
     get_uom_reader,
 )
-from app.service_auth.deps import (
+from app.pms.system.service_auth.deps import (
     PMS_SERVICE_CLIENT_HEADER,
     get_pms_service_permission_service,
 )
