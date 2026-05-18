@@ -10,6 +10,25 @@ jobs:
   backend-ci:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pms
+          POSTGRES_PASSWORD: pms
+          POSTGRES_DB: pms
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U pms -d pms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PMS_DATABASE_URL: postgresql+psycopg://pms:pms@127.0.0.1:5433/pms
+      PYTHONPATH: .
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,7 +46,15 @@ jobs:
 
       - name: Compile
         run: |
-          .venv/bin/python -m compileall app tests scripts
+          .venv/bin/python3 -m compileall app tests scripts
+
+      - name: Upgrade database
+        run: |
+          make upgrade-dev
+
+      - name: Alembic check
+        run: |
+          make alembic-check
 
       - name: Test
         run: |

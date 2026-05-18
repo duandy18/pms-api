@@ -7,6 +7,7 @@ from app.pms.system.read_v1.services.app_manifest_service import (
     PMS_APP_VERSION,
     build_pms_app_manifest,
 )
+from app.pms.system.read_v1.services.iam_snapshot_service import PmsIamSnapshotService
 from app.pms.system.read_v1.services.page_catalog_service import PmsPageCatalogService
 from app.pms.system.read_v1.services.service_capability_service import (
     PmsServiceCapabilityReadService,
@@ -21,6 +22,7 @@ __all__ = [
     "PMS_APP_NAME",
     "PMS_APP_VERSION",
     "PMS_SERVICE_CLIENT_CODE",
+    "PmsIamSnapshotService",
     "PmsPageCatalogService",
     "PmsServiceCapabilityReadService",
     "build_pms_app_manifest",
