@@ -14,6 +14,7 @@ from app.pms.suppliers.routers.suppliers_read_v1 import (
     router as pms_suppliers_read_v1_router,
 )
 from app.pms.system.read_v1.routers import router as pms_system_read_v1_router
+from app.pms.system.write_v1.routers import router as pms_system_write_v1_router
 from app.routers.health import router as health_router
 from app.routers.pms_owner import router as pms_owner_router
 from app.routers.pms_read_v1 import router as pms_read_v1_router
@@ -46,6 +47,7 @@ app.include_router(health_router)
 app.include_router(user_router)
 app.include_router(admin_router)
 app.include_router(pms_system_read_v1_router)
+app.include_router(pms_system_write_v1_router)
 app.include_router(pms_read_v1_router)
 app.include_router(pms_suppliers_projection_feed_router)
 app.include_router(pms_suppliers_read_v1_router)
