@@ -16,21 +16,31 @@ def _method_paths() -> set[tuple[str, str]]:
     return pairs
 
 
-def test_admin_user_management_routes_are_mounted() -> None:
+def test_admin_user_management_read_routes_are_mounted() -> None:
     pairs = _method_paths()
 
     assert ("GET", "/admin/users/permission-matrix") in pairs
     assert ("GET", "/admin/users") in pairs
-    assert ("POST", "/admin/users") in pairs
-    assert ("PATCH", "/admin/users/{user_id}") in pairs
-    assert ("PUT", "/admin/users/{user_id}/permission-matrix") in pairs
-    assert ("POST", "/admin/users/{user_id}/delete") in pairs
-    assert ("POST", "/admin/users/{user_id}/reset-password") in pairs
+
+
+def test_admin_user_management_write_routes_are_retired() -> None:
+    pairs = _method_paths()
+    paths = {path for _, path in pairs}
+
+    assert ("POST", "/admin/users") not in pairs
+    assert "/admin/users/{user_id}" not in paths
+    assert "/admin/users/{user_id}/delete" not in paths
+    assert "/admin/users/{user_id}/reset-password" not in paths
+    assert "/admin/users/{user_id}/permission-matrix" not in paths
 
 
 def test_admin_domain_is_allowed_in_page_registry_metadata() -> None:
     table = metadata.tables["page_registry"]
-    constraint_texts = {str(constraint.sqltext) for constraint in table.constraints if hasattr(constraint, "sqltext")}
+    constraint_texts = {
+        str(constraint.sqltext)
+        for constraint in table.constraints
+        if hasattr(constraint, "sqltext")
+    }
 
     assert any("admin" in text and "pms" in text for text in constraint_texts)
 
